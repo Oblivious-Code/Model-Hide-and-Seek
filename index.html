@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Roller Coaster Creator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            background: #1a1a1a;
+        }
+        #canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            font-size: 14px;
+            max-width: 300px;
+            z-index: 100;
+        }
+        #ui h2 {
+            margin-bottom: 15px;
+            color: #4ecca3;
+        }
+        button {
+            background: #4ecca3;
+            color: #000;
+            border: none;
+            padding: 10px 15px;
+            margin: 5px 0;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            width: 100%;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #3ab385;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        #info {
+            margin-top: 15px;
+            font-size: 12px;
+            line-height: 1.6;
+            color: #ccc;
+        }
+        .status {
+            color: #4ecca3;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <h2>🎢 Coaster Creator</h2>
+        <div id="mode-display" class="status">Mode: Build</div>
+        <button id="addPointBtn">📍 Add Track Point</button>
+        <button id="clearBtn">🗑️ Clear Track</button>
+        <button id="rideBtn" disabled>🚀 Ride Coaster</button>
+        <button id="stopRideBtn" disabled>⏹️ Stop Ride</button>
+        <div id="info">
+            <p><strong>Build Mode:</strong></p>
+            <p>Click "Add Track Point" to place coaster points. Place at least 3 points.</p>
+            <p><strong>Ride Mode:</strong></p>
+            <p>Camera follows the coaster with smooth physics and acceleration.</p>
+            <p id="pointCount">Points: 0</p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a2e);
+        scene.fog = new THREE.Fog(0x1a1a2e, 500, 1000);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+        camera.position.set(0, 50, 100);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFShadowShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(100, 150, 100);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.camera.far = 500;
+        scene.add(directionalLight);
+
+        // Ground
+        const groundGeometry = new THREE.PlaneGeometry(500, 500);
+        const groundMaterial = new THREE.MeshStandardMaterial({
+            color: 0x2d5a3d,
+            roughness: 0.8,
+            metalness: 0.1
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Coaster track
+        let trackPoints = [];
+        let curve = null;
+        let trackMesh = null;
+        const trackPointVisuals = [];
+        let isRiding = false;
+        let rideProgress = 0;
+        let rideSpeed = 0;
+
+        // UI Elements
+        const addPointBtn = document.getElementById('addPointBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const rideBtn = document.getElementById('rideBtn');
+        const stopRideBtn = document.getElementById('stopRideBtn');
+        const modeDisplay = document.getElementById('mode-display');
+        const pointCountDisplay = document.getElementById('pointCount');
+
+        function addTrackPoint() {
+            const randomX = (Math.random() - 0.5) * 200;
+            const randomZ = (Math.random() - 0.5) * 200;
+            const height = Math.random() * 150 + 10;
+            trackPoints.push(new THREE.Vector3(randomX, height, randomZ));
+            updateTrackVisuals();
+        }
+
+        function clearTrack() {
+            trackPoints = [];
+            trackPointVisuals.forEach(v => scene.remove(v));
+            trackPointVisuals.length = 0;
+            if (trackMesh) scene.remove(trackMesh);
+            trackMesh = null;
+            curve = null;
+            pointCountDisplay.textContent = `Points: 0`;
+            rideBtn.disabled = true;
+            isRiding = false;
+            rideProgress = 0;
+        }
+
+        function updateTrackVisuals() {
+            // Remove old visuals
+            trackPointVisuals.forEach(v => scene.remove(v));
+            trackPointVisuals.length = 0;
+
+            // Add point spheres
+            trackPoints.forEach((point, index) => {
+                const sphereGeometry = new THREE.SphereGeometry(5, 16, 16);
+                const sphereMaterial = new THREE.MeshStandardMaterial({
+                    color: new THREE.Color().setHSL(index / trackPoints.length, 0.8, 0.5),
+                    emissive: new THREE.Color().setHSL(index / trackPoints.length, 0.8, 0.3),
+                    metalness: 0.7,
+                    roughness: 0.2
+                });
+                const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+                sphere.position.copy(point);
+                sphere.castShadow = true;
+                scene.add(sphere);
+                trackPointVisuals.push(sphere);
+            });
+
+            // Update track mesh
+            if (trackPoints.length >= 3) {
+                if (trackMesh) scene.remove(trackMesh);
+
+                curve = new THREE.CatmullRomCurve3(trackPoints);
+                const points = curve.getPoints(Math.max(trackPoints.length * 20, 100));
+                const trackGeometry = new THREE.BufferGeometry().setFromPoints(points);
+
+                const trackMaterial = new THREE.LineBasicMaterial({
+                    color: 0xff6b6b,
+                    linewidth: 3
+                });
+                trackMesh = new THREE.Line(trackGeometry, trackMaterial);
+                scene.add(trackMesh);
+
+                // Create 3D track (tube)
+                const tubeGeometry = new THREE.TubeGeometry(curve, 50, 8, 8, false);
+                const tubeMaterial = new THREE.MeshStandardMaterial({
+                    color: 0xffaa00,
+                    metalness: 0.8,
+                    roughness: 0.2,
+                    emissive: 0x663300
+                });
+                const tubeMesh = new THREE.Mesh(tubeGeometry, tubeMaterial);
+                tubeMesh.castShadow = true;
+                tubeMesh.receiveShadow = true;
+
+                if (trackMesh.userData.tube) scene.remove(trackMesh.userData.tube);
+                scene.add(tubeMesh);
+                trackMesh.userData.tube = tubeMesh;
+
+                pointCountDisplay.textContent = `Points: ${trackPoints.length}`;
+                rideBtn.disabled = false;
+            } else {
+                rideBtn.disabled = true;
+            }
+        }
+
+        function startRide() {
+            if (trackPoints.length < 3) return;
+            isRiding = true;
+            rideProgress = 0;
+            rideSpeed = 0;
+            modeDisplay.textContent = 'Mode: Riding 🎢';
+            addPointBtn.disabled = true;
+            clearBtn.disabled = true;
+            rideBtn.disabled = true;
+            stopRideBtn.disabled = false;
+        }
+
+        function stopRide() {
+            isRiding = false;
+            modeDisplay.textContent = 'Mode: Build';
+            addPointBtn.disabled = false;
+            clearBtn.disabled = false;
+            rideBtn.disabled = false;
+            stopRideBtn.disabled = true;
+        }
+
+        function updateRide() {
+            if (!isRiding || !curve) return;
+
+            // Physics: acceleration and deceleration
+            const acceleration = 0.005;
+            const maxSpeed = 0.015;
+            const friction = 0.98;
+
+            rideSpeed += acceleration;
+            rideSpeed = Math.min(rideSpeed, maxSpeed);
+            rideSpeed *= friction;
+
+            rideProgress += rideSpeed;
+
+            if (rideProgress >= 1) {
+                rideProgress = 0;
+                rideSpeed = 0;
+            }
+
+            // Get position on curve
+            const position = curve.getPoint(rideProgress);
+            const positionAhead = curve.getPoint(Math.min(rideProgress + 0.05, 1));
+
+            // Camera follows with offset
+            const offset = new THREE.Vector3(0, 15, -30);
+            offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), Math.sin(rideProgress * Math.PI * 2) * 0.3);
+
+            camera.position.lerp(position.clone().add(offset), 0.1);
+            camera.lookAt(positionAhead);
+        }
+
+        // Event listeners
+        addPointBtn.addEventListener('click', addTrackPoint);
+        clearBtn.addEventListener('click', clearTrack);
+        rideBtn.addEventListener('click', startRide);
+        stopRideBtn.addEventListener('click', stopRide);
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            updateRide();
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // Start with some initial points
+        addTrackPoint();
+        addTrackPoint();
+        addTrackPoint();
+    </script>
+</body>
+</html>
