@@ -2,389 +2,929 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced 3D Roller Coaster Creator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Multi-Agent Hide & Seek</title>
     <style>
         * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
         }
-        body {
-            font-family: 'Arial', sans-serif;
+        body, html {
+            width: 100%;
+            height: 100%;
             overflow: hidden;
-            background: #1a1a1a;
+            background-color: #111;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
-        #canvas {
-            display: block;
-            width: 100vw;
-            height: 100vh;
-        }
-        #ui {
+        #canvas-container {
+            width: 100%;
+            height: 100%;
             position: absolute;
-            top: 20px;
-            left: 20px;
-            background: rgba(0, 0, 0, 0.85);
+            top: 0;
+            left: 0;
+        }
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 15px;
+        }
+        .interactive {
+            pointer-events: auto;
+        }
+        /* Menu Overlay */
+        #menu-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
             color: #fff;
             padding: 20px;
-            border-radius: 10px;
-            font-size: 13px;
-            max-width: 350px;
-            z-index: 100;
-            backdrop-filter: blur(10px);
+            text-align: center;
         }
-        #ui h2 {
-            margin-bottom: 15px;
-            color: #ff6b9d;
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            color: #38bdf8;
+            text-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
-        button {
-            background: #ff6b9d;
-            color: #fff;
-            border: none;
-            padding: 10px 15px;
-            margin: 5px 0;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
+        p.subtitle {
+            color: #94a3b8;
+            margin-bottom: 30px;
+            max-width: 500px;
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+        .menu-card {
+            background: #1e293b;
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5);
             width: 100%;
-            transition: all 0.3s;
+            max-width: 420px;
+            border: 1px solid #334155;
         }
-        button:hover {
-            background: #ff4757;
-            transform: scale(1.02);
+        .section-title {
+            font-size: 1.1rem;
+            color: #e2e8f0;
+            margin-bottom: 12px;
+            text-align: left;
+            font-weight: 600;
         }
-        button:disabled {
-            background: #666;
-            cursor: not-allowed;
-            transform: scale(1);
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
         }
-        #info {
-            margin-top: 15px;
-            font-size: 11px;
-            line-height: 1.8;
-            color: #ccc;
-        }
-        .status {
-            color: #4ecca3;
+        .btn {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
             font-weight: bold;
-            margin: 10px 0;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #334155;
+            color: #94a3b8;
         }
-        .controls {
-            background: rgba(255, 107, 157, 0.1);
-            padding: 10px;
-            border-left: 3px solid #ff6b9d;
-            margin: 10px 0;
-            border-radius: 3px;
+        .btn.active {
+            background: #0284c7;
+            color: white;
+            box-shadow: 0 0 15px rgba(2, 132, 199, 0.4);
         }
-        #selectedInfo {
-            background: rgba(0, 200, 255, 0.1);
-            padding: 10px;
-            margin: 10px 0;
-            border-radius: 3px;
-            border-left: 3px solid #00c8ff;
+        #start-btn {
+            width: 100%;
+            background: #10b981;
+            color: white;
+            padding: 16px;
+            font-size: 1.2rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+        #start-btn:hover {
+            background: #059669;
+        }
+        /* HUD Layout */
+        #top-hud {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .hud-panel {
+            background: rgba(15, 23, 42, 0.75);
+            padding: 10px 16px;
+            border-radius: 12px;
+            color: white;
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.1);
+            font-weight: bold;
+        }
+        #timer-box {
+            font-size: 1.4rem;
+            text-align: center;
+            min-width: 120px;
+        }
+        #phase-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: #94a3b8;
+            letter-spacing: 0.05em;
+        }
+        #score-box {
+            font-size: 1rem;
+        }
+        .team-hider { color: #38bdf8; }
+        .team-seeker { color: #f87171; }
+        
+        /* Mobile Controls Overlay */
+        #controls-layer {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding-bottom: 10px;
+        }
+        #joystick-zone {
+            width: 130px;
+            height: 130px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 2px solid rgba(255,255,255,0.2);
+            backdrop-filter: blur(4px);
+        }
+        #joystick-nub {
+            width: 50px;
+            height: 50px;
+            background: rgba(255,255,255,0.8);
+            border-radius: 50%;
+            position: absolute;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        #action-zone {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .action-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: rgba(15, 23, 42, 0.75);
+            border: 2px solid rgba(255,255,255,0.3);
+            color: white;
+            font-size: 0.9rem;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+        }
+        .action-btn:active {
+            background: #0284c7;
+            border-color: #38bdf8;
+        }
+        #lock-btn {
+            border-color: #eab308;
+        }
+        #lock-btn.locked-state {
+            background: #eab308;
+            color: black;
+        }
+        
+        /* Desktop Instructions Banner */
+        #desktop-instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: #cbd5e1;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            pointer-events: none;
+            display: none;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        @media (pointer: fine) {
+            #desktop-instructions { display: block; }
         }
     </style>
+    <!-- Three.js Library -->
+    <script src="https://cloudflare.com"></script>
 </head>
 <body>
-    <div id="ui">
-        <h2>🎢 Advanced Coaster Creator</h2>
-        <div id="mode-display" class="status">Mode: Build</div>
-        
-        <div class="controls">
-            <strong>🎮 Movement:</strong>
-            <p>W/A/S/D - Walk around<br>SPACE - Jump<br>Mouse - Look around</p>
+
+    <div id="canvas-container"></div>
+
+    <!-- UI Overlay Layer -->
+    <div id="ui-layer">
+        <!-- Top HUD Panel -->
+        <div id="top-hud">
+            <div class="hud-panel" id="score-box">
+                <div>Hiders Left: <span id="hiders-count" class="team-hider">2</span></div>
+                <div style="font-size: 0.8rem; margin-top: 4px; color:#a1a1aa;" id="matchmaking-status">Local Match</div>
+            </div>
+            
+            <div class="hud-panel" id="timer-box">
+                <div id="phase-title">Preparation</div>
+                <div id="timer-display">20</div>
+            </div>
+
+            <div class="hud-panel" style="text-align: right;">
+                <div>Role: <span id="role-display">Hider</span></div>
+                <div id="holding-status" style="font-size: 0.8rem; font-weight: normal; color: #94a3b8; margin-top:4px;">Hands Free</div>
+            </div>
         </div>
 
-        <div class="controls">
-            <strong>🛠️ Editing:</strong>
-            <p>Click track points to select<br>Drag - Move point<br>↑/↓ - Rotate<br>DEL - Remove point</p>
+        <!-- Desktop Instruction Badge -->
+        <div id="desktop-instructions">
+            [WASD/Arrows] Move • [Space] Grab/Release Object • [L] Lock/Unlock Object
         </div>
 
-        <button id="addPointBtn">📍 Add Track Point</button>
-        <button id="clearBtn">🗑️ Clear Track</button>
-        <button id="rideBtn" disabled>🚀 Ride Coaster</button>
-        <button id="stopRideBtn" disabled>⏹️ Stop Ride</button>
+        <!-- Mobile Control Overlay Pad -->
+        <div id="controls-layer">
+            <div class="interactive" id="joystick-zone">
+                <div id="joystick-nub"></div>
+            </div>
 
-        <div id="selectedInfo" style="display: none;">
-            <strong>Selected Point:</strong><br>
-            <span id="selectedIndex"></span><br>
-            Use ↑↓ to rotate, drag to move
-        </div>
-
-        <div id="info">
-            <p id="pointCount">Points: 0</p>
-            <p id="speedometer" style="display:none;">Speed: 0%</p>
+            <div id="action-zone">
+                <div class="action-btn interactive" id="lock-btn">LOCK<br>(L)</div>
+                <div class="action-btn interactive" id="grab-btn">GRAB<br>(Space)</div>
+            </div>
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Main Dynamic Setup Menu -->
+    <div id="menu-overlay">
+        <h1>Multi-Agent Hide & Seek</h1>
+        <p class="subtitle">Inspired by OpenAI's emergent co-evolution simulation. Use tools, build shelters, lock entryways, or deploy ramps to cross barricades.</p>
+        
+        <div class="menu-card interactive">
+            <div class="section-title">1. Choose Match Type</div>
+            <div class="btn-group">
+                <button class="btn active" id="mode-ai">vs AI Agents</button>
+                <button class="btn" id="mode-online">Online Sandbox</button>
+            </div>
+
+            <div class="section-title">2. Choose Your Identity</div>
+            <div class="btn-group">
+                <button class="btn active" id="role-hider" style="border-bottom: 3px solid #38bdf8;">Play as Hider</button>
+                <button class="btn" id="role-seeker" style="border-bottom: 3px solid #f87171;">Play as Seeker</button>
+            </div>
+
+            <button id="start-btn" class="btn">Deploy into Sandbox</button>
+        </div>
+    </div>
+
     <script>
-        // Scene setup
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x0d1b2a);
-        scene.fog = new THREE.Fog(0x0d1b2a, 800, 1500);
-
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
-        camera.position.set(0, 25, 50);
-
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFShadowShadowMap;
-        renderer.shadowMap.mapSize.width = 2048;
-        renderer.shadowMap.mapSize.height = 2048;
-        document.body.appendChild(renderer.domElement);
-
-        // Lighting - improved
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-        scene.add(ambientLight);
-
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
-        directionalLight.position.set(150, 200, 100);
-        directionalLight.castShadow = true;
-        directionalLight.shadow.mapSize.width = 4096;
-        directionalLight.shadow.mapSize.height = 4096;
-        directionalLight.shadow.camera.far = 800;
-        directionalLight.shadow.camera.left = -400;
-        directionalLight.shadow.camera.right = 400;
-        directionalLight.shadow.camera.top = 400;
-        directionalLight.shadow.camera.bottom = -400;
-        scene.add(directionalLight);
-
-        // Hemisphere light for better ambient
-        const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x2d5016, 0.6);
-        scene.add(hemiLight);
-
-        // Ground with better material
-        const groundGeometry = new THREE.PlaneGeometry(800, 800);
-        const groundMaterial = new THREE.MeshStandardMaterial({
-            color: 0x2d5016,
-            roughness: 0.9,
-            metalness: 0.0,
-            map: createGridTexture()
-        });
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        scene.add(ground);
-
-        // Grid texture
-        function createGridTexture() {
-            const canvas = document.createElement('canvas');
-            canvas.width = 256;
-            canvas.height = 256;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#2d5016';
-            ctx.fillRect(0, 0, 256, 256);
-            ctx.strokeStyle = '#1a3010';
-            ctx.lineWidth = 1;
-            for (let i = 0; i < 256; i += 32) {
-                ctx.beginPath();
-                ctx.moveTo(i, 0);
-                ctx.lineTo(i, 256);
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.moveTo(0, i);
-                ctx.lineTo(256, i);
-                ctx.stroke();
-            }
-            const texture = new THREE.CanvasTexture(canvas);
-            texture.repeat.set(4, 4);
-            texture.wrapS = THREE.RepeatWrapping;
-            texture.wrapT = THREE.RepeatWrapping;
-            return texture;
-        }
-
-        // Player controller
-        const player = {
-            position: new THREE.Vector3(0, 10, 0),
-            velocity: new THREE.Vector3(0, 0, 0),
-            direction: new THREE.Euler(0, 0, 0, 'YXZ'),
-            speed: 0.3,
-            jumpPower: 0.8,
-            isJumping: false,
-            gravity: -0.015
-        };
-
-        // Input handling
-        const keys = {};
-        const raycaster = new THREE.Raycaster();
-        const mouse = new THREE.Vector2();
-        let selectedPointIndex = -1;
-        let isDraggingPoint = false;
-        let isLooking = false;
-
-        document.addEventListener('keydown', (e) => { keys[e.key.toLowerCase()] = true; });
-        document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
-
-        document.addEventListener('mousemove', (e) => {
-            if (isLooking) {
-                player.direction.setFromQuaternion(camera.quaternion);
-                player.direction.order = 'YXZ';
-                player.direction.rotateY(-e.movementX * 0.003);
-                player.direction.rotateX(-e.movementY * 0.003);
-                player.direction.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, player.direction.x));
-                camera.quaternion.setFromEuler(player.direction);
-            }
-
-            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-        });
-
-        document.addEventListener('mousedown', (e) => {
-            if (e.button === 0) {
-                isLooking = true;
-                document.pointerLockElement || document.documentElement.requestPointerLock();
-            }
-        });
-
-        document.addEventListener('mouseup', (e) => {
-            if (e.button === 0) {
-                isLooking = false;
-                if (document.pointerLockElement) document.exitPointerLock();
-            }
-        });
-
-        document.addEventListener('click', () => {
-            raycaster.setFromCamera(mouse, camera);
-            let selected = false;
-            trackPointVisuals.forEach((visual, index) => {
-                if (raycaster.ray.distanceToPoint(visual.position) < 10) {
-                    selectPoint(index);
-                    selected = true;
-                }
-            });
-            if (!selected) deselectPoint();
-        });
-
-        // Coaster track
-        let trackPoints = [];
-        let trackRotations = [];
-        let curve = null;
-        let trackMesh = null;
-        const trackPointVisuals = [];
-        const supportBeams = [];
-        let isRiding = false;
-        let rideProgress = 0;
-        let rideSpeed = 0;
-
-        // UI Elements
-        const addPointBtn = document.getElementById('addPointBtn');
-        const clearBtn = document.getElementById('clearBtn');
-        const rideBtn = document.getElementById('rideBtn');
-        const stopRideBtn = document.getElementById('stopRideBtn');
-        const modeDisplay = document.getElementById('mode-display');
-        const pointCountDisplay = document.getElementById('pointCount');
-        const selectedInfo = document.getElementById('selectedInfo');
-        const speedometer = document.getElementById('speedometer');
-
-        function selectPoint(index) {
-            selectedPointIndex = index;
-            selectedInfo.style.display = 'block';
-            document.getElementById('selectedIndex').textContent = `Point ${index + 1}`;
-        }
-
-        function deselectPoint() {
-            selectedPointIndex = -1;
-            selectedInfo.style.display = 'none';
-        }
-
-        function addTrackPoint() {
-            const randomX = (Math.random() - 0.5) * 200;
-            const randomZ = (Math.random() - 0.5) * 200;
-            const height = Math.random() * 120 + 20;
-            trackPoints.push(new THREE.Vector3(randomX, height, randomZ));
-            trackRotations.push(0);
-            updateTrackVisuals();
-        }
-
-        function clearTrack() {
-            trackPoints = [];
-            trackRotations = [];
-            trackPointVisuals.forEach(v => scene.remove(v));
-            trackPointVisuals.length = 0;
-            supportBeams.forEach(b => scene.remove(b));
-            supportBeams.length = 0;
-            if (trackMesh) scene.remove(trackMesh);
-            trackMesh = null;
-            curve = null;
-            pointCountDisplay.textContent = `Points: 0`;
-            rideBtn.disabled = true;
-            isRiding = false;
-            rideProgress = 0;
-            deselectPoint();
-        }
-
-        function createRealisticTrack(curve) {
-            if (trackMesh && trackMesh.userData.railGroup) {
-                scene.remove(trackMesh.userData.railGroup);
-            }
-
-            const points = curve.getPoints(Math.max(trackPoints.length * 30, 150));
-            const railGroup = new THREE.Group();
-
-            // Main rails (two parallel tracks)
-            const railGeometry = new THREE.BufferGeometry().setFromPoints(points);
-            const railMaterial = new THREE.MeshStandardMaterial({
-                color: 0xc0c0c0,
-                metalness: 0.95,
-                roughness: 0.1,
-                emissive: 0x333333
-            });
-
-            // Left rail
-            const leftRailPoints = points.map((p, i) => {
-                const tangent = curve.getTangent(i / points.length);
-                const normal = new THREE.Vector3(0, 1, 0);
-                if (Math.abs(tangent.dot(normal)) < 0.99) {
-                    normal.crossVectors(tangent, new THREE.Vector3(0, 0, 1)).normalize();
-                    normal.crossVectors(tangent, normal).normalize();
-                } else {
-                    normal.set(1, 0, 0);
-                }
-                return p.clone().addScaledVector(normal, 8);
-            });
-
-            // Right rail
-            const rightRailPoints = points.map((p, i) => {
-                const tangent = curve.getTangent(i / points.length);
-                const normal = new THREE.Vector3(0, 1, 0);
-                if (Math.abs(tangent.dot(normal)) < 0.99) {
-                    normal.crossVectors(tangent, new THREE.Vector3(0, 0, 1)).normalize();
-                    normal.crossVectors(tangent, normal).normalize();
-                } else {
-                    normal.set(1, 0, 0);
-                }
-                return p.clone().addScaledVector(normal, -8);
-            });
-
-            // Create rails using LatheGeometry for realistic tubing
-            points.forEach((p, i) => {
-                const railRadius = 2;
-                const geometry = new THREE.CylinderGeometry(railRadius, railRadius, 0.5, 8);
-                const mesh = new THREE.Mesh(geometry, railMaterial);
-                mesh.position.copy(leftRailPoints[i]);
-                mesh.castShadow = true;
-                mesh.receiveShadow = true;
-                railGroup.add(mesh);
-            });
-
-            points.forEach((p, i) => {
-                const railRadius = 2;
-                const geometry = new THREE.CylinderGeometry(railRadius, railRadius, 0.5, 8);
-                const mesh = new THREE.Mesh(geometry, railMaterial);
-                mesh.position.copy(rightRailPoints[i]);
-                mesh.castShadow = true;
-                mesh.receiveShadow = true;
-                railGroup.add(mesh);
-            });
-
-            // Cross beams
-            for (let i = 0; i < points.length; i += 5) {
-                const leftPoint = leftRailPoints[i];
-                const rightPoint = rightRailPoints[i];
-                const distance = leftPoint.distanceTo(rightPoint);
-                const midPoint = new THREE.Vector3().addVectors(leftPoint, rightPoint).multiplyScalar(0.5);
-
-                const crossBeamGeometry = new THREE.CylinderGeometry(1.5, 1.5, distance, 8);
-                const crossBeamMaterial = new THREE.MeshSt
+        // --- Configuration & Constants ---
+        const ARENA_SIZE = 50;
+        const PREP_TIME = 20; 
+        const SEEK_TIME = 40;
+        
+        // --- State Management Engine ---
+        let state = {
+            gameMode: 'AI', // 'AI' or 'Online'
+            playerRole: 'Hider', // 'Hider' or 'Seeker'
+            phase: 'PREP', // 'PREP' or 'SEEK'
+            timeLeft: PREP_TIME,
+            running: false,
+            isOnlineConnected: false,
+mockPeerId: 'Player_' + Math.floor(Math.random()*9000+1000)
+};
+// --- Core Object Entities ---
+let scene, camera, renderer;
+let playerEntity = {
+mesh: null,
+x: -15, z: -15, radius: 0.9,
+vx: 0, vz: 0, speed: 11,
+holdingObj: null,
+team: 'Hider'
+};
+let entities = []; // Holds AI agents and remote simulation instances
+let interactables = []; // Props, blocks, ramps
+// --- UI Interactions ---
+const menuOverlay = document.getElementById('menu-overlay');
+const startBtn = document.getElementById('start-btn');
+const btnAi = document.getElementById('mode-ai');
+const btnOnline = document.getElementById('mode-online');
+const btnHider = document.getElementById('role-hider');
+const btnSeeker = document.getElementById('role-seeker');
+const timerDisplay = document.getElementById('timer-display');
+const phaseTitle = document.getElementById('phase-title');
+const roleDisplay = document.getElementById('role-display');
+const hidersCountDisplay = document.getElementById('hiders-count');
+const grabBtn = document.getElementById('grab-btn');
+const lockBtn = document.getElementById('lock-btn');
+const holdingStatus = document.getElementById('holding-status');
+const matchmakingStatus = document.getElementById('matchmaking-status');
+// --- Control Vectors ---
+let keys = {};
+let joystickInput = { x: 0, y: 0 };
+let isJoystickActive = false;
+let joyStart = { x: 0, y: 0 };
+// --- Configuration Handlers ---
+btnAi.onclick = () => { btnAi.classList.add('active'); btnOnline.classList.remove('active'); state.gameMode = 'AI'; };
+btnOnline.onclick = () => { btnOnline.classList.add('active'); btnAi.classList.remove('active'); state.gameMode = 'Online'; };
+btnHider.onclick = () => { btnHider.classList.add('active'); btnSeeker.classList.remove('active'); state.playerRole = 'Hider'; };
+btnSeeker.onclick = () => { btnSeeker.classList.add('active'); btnHider.classList.remove('active'); state.playerRole = 'Seeker'; };
+startBtn.onclick = () => {
+menuOverlay.style.display = 'none';
+initGame();
+};
+// --- Game Setup Engine ---
+function initGame() {
+state.running = true;
+state.phase = 'PREP';
+state.timeLeft = PREP_TIME;
+playerEntity.team = state.playerRole;
+roleDisplay.textContent = playerEntity.team;
+roleDisplay.className = playerEntity.team === 'Hider' ? 'team-hider' : 'team-seeker';
+if (state.gameMode === 'Online') {
+matchmakingStatus.textContent = "Connected to Global Sandbox";
+setupMockOnlineSync();
+} else {
+matchmakingStatus.textContent = "Local Agent Simulation";
+}
+setupThreeJS();
+buildEnvironment();
+spawnEntities();
+setupInputListeners();
+// Start clock loop countdown
+clearInterval(this.clockInterval);
+this.clockInterval = setInterval(updateClock, 1000);
+animate(0);
+}
+function setupThreeJS() {
+const container = document.getElementById('canvas-container');
+container.innerHTML = ''; // Clean canvas reset
+scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0f172a); // Deep modern slate blue background
+scene.fog = new THREE.FogExp2(0x0f172a, 0.015);
+camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+// Lighting Design
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambientLight);
+const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
+sunLight.position.set(30, 40, 20);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.width = 2048;
+sunLight.shadow.mapSize.height = 2048;
+sunLight.shadow.camera.near = 0.5;
+sunLight.shadow.camera.far = 150;
+const d = 40;
+sunLight.shadow.camera.left = -d;
+sunLight.shadow.camera.right = d;
+sunLight.shadow.camera.top = d;
+sunLight.shadow.camera.bottom = -d;
+scene.add(sunLight);
+}
+function buildEnvironment() {
+// Textured / Clean Multi-Grid Playground Ground
+const floorGeo = new THREE.PlaneGeometry(ARENA_SIZE, ARENA_SIZE);
+const floorMat = new THREE.MeshStandardMaterial({
+color: 0x1e293b,
+roughness: 0.8,
+metalness: 0.1
+});
+const floor = new THREE.Mesh(floorGeo, floorMat);
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+// Tech Wireframe Grid Overlay for Alignment Reference
+const grid = new THREE.GridHelper(ARENA_SIZE, ARENA_SIZE, 0x334155, 0x1e293b);
+grid.position.y = 0.01;
+scene.add(grid);
+// Perimeter Boundaries Structural Layout
+const wallMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5 });
+const thicknesses = 2;
+const height = 4;
+const wallsData = [
+{ w: ARENA_SIZE, h: height, d: thicknesses, x: 0, z: -ARENA_SIZE/2 },
+{ w: ARENA_SIZE, h: height, d: thicknesses, x: 0, z: ARENA_SIZE/2 },
+{ w: thicknesses, h: height, d: ARENA_SIZE, x: -ARENA_SIZE/2, z: 0 },
+{ w: thicknesses, h: height, d: ARENA_SIZE, x: ARENA_SIZE/2, z: 0 }
+];
+wallsData.forEach(data => {
+const geo = new THREE.BoxGeometry(data.w, data.h, data.d);
+const mesh = new THREE.Mesh(geo, wallMat);
+mesh.position.set(data.x, height/2, data.z);
+mesh.receiveShadow = true;
+mesh.castShadow = true;
+scene.add(mesh);
+});
+// Procedural Obstacles & Shelters Placement Loop
+interactables = [];
+// Build 4 Static Internal Fixed Pillars
+const pillarGeo = new THREE.BoxGeometry(4, 4, 4);
+const pillarMat = new THREE.MeshStandardMaterial({ color: 0x475569 });
+const fixedPositions = [
+{x: -10, z: 5}, {x: 10, z: -5}, {x: -5, z: 12}, {x: 8, z: 10}
+];
+fixedPositions.forEach(pos => {
+const mesh = new THREE.Mesh(pillarGeo, pillarMat);
+mesh.position.set(pos.x, 2, pos.z);
+mesh.castShadow = true;
+mesh.receiveShadow = true;
+scene.add(mesh);
+});
+// Spawn Moveable Standard Building Blocks (Shelter Components)
+for(let i=0; i<8; i++) {
+createMoveableBlock(
+(Math.random() - 0.5) * 25,
+(Math.random() - 0.5) * 25,
+'cube'
+);
+}
+// Spawn Moveable Strategic Advantage Ramps
+for(let i=0; i<3; i++) {
+createMoveableBlock(
+(Math.random() - 0.5) * 30,
+(Math.random() - 0.5) * 30,
+'ramp'
+);
+}
+}
+function createMoveableBlock(x, z, type) {
+let geo, mat;
+if(type === 'cube') {
+geo = new THREE.BoxGeometry(3, 2, 3);
+mat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.4 });
+} else { // Wedge / Ramp Shape Geometry Engine
+geo = new THREE.BufferGeometry();
+const vertices = new Float32Array([
+-2, 0,  2,   2, 0,  2,   -2, 2,  2,  // Face Front Left Corner
+2, 0,  2,   2, 2, -2,   -2, 2,  2,  // Incline slope plane
+-2, 0, -2,  -2, 0,  2,   -2, 2,  2,  // Left side profile wall
+2, 0,  2,   2, 0, -2,   2, 2, -2,   // Right side profile wall
+-2, 0, -2,   2, 0, -2,   2, 2, -2,   // Back panel shield
+-2, 0, -2,  -2, 2,  2,   2, 2, -2,
+-2, 0, -2,   2, 0, -2,   2, 0,  2,   // Floor panel footprint
+2, 0,  2,  -2, 0,  2,  -2, 0, -2
+]);
+geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+geo.computeVertexNormals();
+mat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4 }); // Gold Amber Tint Ramps
+}
+const mesh = new THREE.Mesh(geo, mat);
+mesh.position.set(x, type==='cube'? 1 : 0, z);
+mesh.castShadow = true;
+mesh.receiveShadow = true;
+scene.add(mesh);
+interactables.push({
+mesh: mesh,
+type: type,
+x: x, z: z,
+width: 3, depth: 3, height: 2,
+isLocked: false,
+lockedColor: 0xef4444,
+baseColor: type === 'cube' ? 0x64748b : 0xf59e0b
+});
+}
+function spawnEntities() {
+entities = [];
+// Instantiate Player Unit Mesh Model
+const playerColor = playerEntity.team === 'Hider' ? 0x0ea5e9 : 0xef4444;
+playerEntity.mesh = createAgentVisual(playerColor, playerEntity.team === 'Seeker');
+// Place player based on side distribution
+if(playerEntity.team === 'Seeker') {
+playerEntity.x = 18; playerEntity.z = 18;
+} else {
+playerEntity.x = -16; playerEntity.z = -12;
+}
+playerEntity.mesh.position.set(playerEntity.x, 1, playerEntity.z);
+scene.add(playerEntity.mesh);
+// Simulation Agents Blueprint Spawn Configuration
+const botConfigs = [
+{ team: 'Hider', x: -12, z: -18, color: 0x38bdf8 },
+{ team: 'Hider', x: -18, z: -6,  color: 0x38bdf8 },
+{ team: 'Seeker', x: 18, z: 12,  color: 0xf87171 }
+];
+// Filter configurations depending on choice selections
+botConfigs.forEach((cfg, index) => {
+// If user plays this slot, bypass assignment
+if(cfg.team === playerEntity.team && index === 0) return;
+let botMesh = createAgentVisual(cfg.color, cfg.team === 'Seeker');
+botMesh.position.set(cfg.x, 1, cfg.z);
+scene.add(botMesh);
+entities.push({
+id: 'bot_' + index,
+mesh: botMesh,
+x: cfg.x, z: cfg.z, radius: 0.9,
+vx: 0, vz: 0,
+speed: cfg.team === 'Seeker' ? 11.5 : 10.5, // Seekers move slightly faster once released
+team: cfg.team,
+isAI: true,
+targetX: cfg.x, targetZ: cfg.z,
+decisionTimer: 0,
+holdingObj: null,
+isEliminated: false
+});
+});
+updateHidersCountDisplay();
+}
+function createAgentVisual(colorHex, isSeeker) {
+const group = new THREE.Group();
+// Main Core Torso Capsule
+const bodyGeo = new THREE.CapsuleGeometry(0.6, 0.8, 4, 8);
+const bodyMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.3 });
+const body = new THREE.Mesh(bodyGeo, bodyMat);
+body.position.y = 0.5;
+body.castShadow = true;
+group.add(body);
+// Team Identity Visor Goggles Overlay
+const visorGeo = new THREE.BoxGeometry(0.7, 0.2, 0.4);
+const visorMat = new THREE.MeshBasicMaterial({ color: isSeeker ? 0xffffff : 0x000000 });
+const visor = new THREE.Mesh(visorGeo, visorMat);
+visor.position.set(0, 1.1, 0.45);
+group.add(visor);
+return group;
+}
+// --- Mock Peer-to-Peer Synchronization Layer ---
+function setupMockOnlineSync() {
+// Emulate dynamic real-time room traffic inside sandbox environment
+setInterval(() => {
+if(!state.running || state.gameMode !== 'Online') return;
+// Randomly assign a remote network action sequence to simulate another live user shifting components
+if(Math.random() < 0.2 && interactables.length > 0) {
+let randomItem = interactables[Math.floor(Math.random() * interactables.length)];
+if(!randomItem.isLocked && randomItem !== playerEntity.holdingObj) {
+randomItem.x += (Math.random() - 0.5) * 4;
+randomItem.z += (Math.random() - 0.5) * 4;
+// Limit boundary check bounds
+randomItem.x = Math.max(-ARENA_SIZE/2+2, Math.min(ARENA_SIZE/2-2, randomItem.x));
+randomItem.z = Math.max(-ARENA_SIZE/2+2, Math.min(ARENA_SIZE/2-2, randomItem.z));
+}
+}
+}, 1500);
+}
+// --- Controller Input Registrations ---
+function setupInputListeners() {
+keys = {};
+window.onkeydown = (e) => {
+keys[e.key.toLowerCase()] = true;
+if(e.key === ' ') { handleGrabToggle(); e.preventDefault(); }
+if(e.key.toLowerCase() === 'l') { handleLockToggle(); }
+};
+window.onkeyup = (e) => { keys[e.key.toLowerCase()] = false; };
+// Wire Up Touch Interface Triggers
+grabBtn.ontouchstart = (e) => { handleGrabToggle(); e.preventDefault(); };
+lockBtn.ontouchstart = (e) => { handleLockToggle(); e.preventDefault(); };
+setupJoystick();
+// Resize viewport adjustment listener
+window.addEventListener('resize', () => {
+camera.aspect = window.innerWidth / window.innerHeight;
+camera.updateProjectionMatrix();
+renderer.setSize(window.innerWidth, window.innerHeight);
+});
+}
+function setupJoystick() {
+const zone = document.getElementById('joystick-zone');
+const nub = document.getElementById('joystick-nub');
+const maxRadius = 50;
+function handleMove(clientX, clientY) {
+let dx = clientX - joyStart.x;
+let dy = clientY - joyStart.y;
+let dist = Math.sqrt(dxdx + dydy);
+if(dist > maxRadius) {
+dx = (dx / dist) * maxRadius;
+dy = (dy / dist) * maxRadius;
+dist = maxRadius;
+}
+nub.style.transform = translate(${dx}px, ${dy}px);
+// Normalise vectors
+joystickInput.x = dx / maxRadius;
+joystickInput.y = dy / maxRadius;
+}
+zone.addEventListener('touchstart', (e) => {
+isJoystickActive = true;
+const rect = zone.getBoundingClientRect();
+joyStart.x = rect.left + rect.width/2;
+joyStart.y = rect.top + rect.height/2;
+handleMove(e.touches[0].clientX, e.touches[0].clientY);
+e.preventDefault();
+});
+window.addEventListener('touchmove', (e) => {
+if(!isJoystickActive) return;
+handleMove(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: false });
+window.addEventListener('touchend', () => {
+if(!isJoystickActive) return;
+isJoystickActive = false;
+nub.style.transform = 'translate(0px, 0px)';
+joystickInput.x = 0;
+joystickInput.y = 0;
+});
+}
+// --- Interaction Rules Mechanics ---
+function handleGrabToggle() {
+if(playerEntity.holdingObj) {
+// Drop current block object mesh drop configuration
+playerEntity.holdingObj = null;
+holdingStatus.textContent = "Hands Free";
+grabBtn.textContent = "GRAB";
+} else {
+// Look for closest valid object item target profile match
+if(state.phase === 'SEEK' && playerEntity.team === 'Seeker') return; // Seekers can't shift environment components during chase phase
+let closest = null;
+let minDist = 3.5;
+interactables.forEach(obj => {
+if(obj.isLocked) return;
+let dx = obj.x - playerEntity.x;
+let dz = obj.z - playerEntity.z;
+let d = Math.sqrt(dxdx + dzdz);
+if(d < minDist) {
+minDist = d;
+closest = obj;
+}
+});
+if(closest) {
+playerEntity.holdingObj = closest;
+holdingStatus.textContent = "Carrying Object";
+grabBtn.textContent = "RELEASE";
+}
+}
+}
+function handleLockToggle() {
+// Locking features can be toggled by the player if they stand right next to an element structure block
+let closest = playerEntity.holdingObj;
+if(!closest) {
+let minDist = 4;
+interactables.forEach(obj => {
+let dx = obj.x - playerEntity.x;
+let dz = obj.z - playerEntity.z;
+let d = Math.sqrt(dxdx + dzdz);
+if(d < minDist) { minDist = d; closest = obj; }
+});
+}
+if(closest) {
+closest.isLocked = !closest.isLocked;
+if(closest.isLocked) {
+closest.mesh.material.color.setHex(closest.lockedColor);
+if(playerEntity.holdingObj === closest) {
+playerEntity.holdingObj = null;
+holdingStatus.textContent = "Hands Free";
+grabBtn.textContent = "GRAB";
+}
+lockBtn.classList.add('locked-state');
+} else {
+closest.mesh.material.color.setHex(closest.baseColor);
+lockBtn.classList.remove('locked-state');
+}
+}
+}
+// --- Clock Interval Tick Engine ---
+function updateClock() {
+if(!state.running) return;
+state.timeLeft--;
+if(state.timeLeft <= 0) {
+if(state.phase === 'PREP') {
+state.phase = 'SEEK';
+state.timeLeft = SEEK_TIME;
+phaseTitle.textContent = "Active Search Chase";
+phaseTitle.style.color = "#ef4444";
+} else {
+// Match Over Run Complete Evaluation Loop
+endGame('Hiders Avoided Capture! Victory.');
+return;
+}
+}
+timerDisplay.textContent = state.timeLeft;
+}
+function updateHidersCountDisplay() {
+let count = 0;
+if(playerEntity.team === 'Hider') count++;
+entities.forEach(e => {
+if(e.team === 'Hider' && !e.isEliminated) count++;
+});
+hidersCountDisplay.textContent = count;
+if(count === 0) {
+endGame('All Hiders Caught! Seeker Victory.');
+}
+}
+function endGame(msg) {
+state.running = false;
+clearInterval(this.clockInterval);
+alert(msg);
+menuOverlay.style.display = 'flex';
+}
+// --- Physics Engine & Framework Updates ---
+function animate(timestamp) {
+if(!state.running) return;
+requestAnimationFrame(animate);
+updatePlayerVelocity();
+updateAIAgentsBehavior();
+resolvePhysicsCollisions();
+renderViewportScene();
+}
+function updatePlayerVelocity() {
+// Keyboard Vector Synthesis Engine
+let mx = 0;
+let mz = 0;
+if(keys['w'] || keys['arrowup']) mz = -1;
+if(keys['s'] || keys['arrowdown']) mz = 1;
+if(keys['a'] || keys['arrowleft']) mx = -1;
+if(keys['d'] || keys['arrowright']) mx = 1;
+// Blend keyboard inputs with Touch Stick Values
+if(isJoystickActive) {
+mx = joystickInput.x;
+mz = joystickInput.y;
+}
+// Normalise input trajectory speeds
+let len = Math.sqrt(mxmx + mzmz);
+if(len > 0) {
+mx /= len;
+mz /= len;
+// Freeze seekers during preparation timer loops
+if(state.phase === 'PREP' && playerEntity.team === 'Seeker') {
+mx = 0; mz = 0;
+}
+playerEntity.vx = mx * playerEntity.speed;
+playerEntity.vz = mz * playerEntity.speed;
+// Rotate body alignment group heading direction smoothly
+let angle = Math.atan2(mx, mz);
+playerEntity.mesh.rotation.y = angle;
+} else {
+playerEntity.vx = 0;
+playerEntity.vz = 0;
+}
+}
+function updateAIAgentsBehavior() {
+entities.forEach(bot => {
+if(bot.isEliminated) return;
+// If Seeker AI and game is currently running under preparation timeline, restrict movement
+if(state.phase === 'PREP' && bot.team === 'Seeker') {
+bot.vx = 0; bot.vz = 0;
+return;
+}
+bot.decisionTimer -= 0.016; // Approx tick step segment calculation
+if(bot.decisionTimer <= 0) {
+bot.decisionTimer = Math.random() * 2 + 1; // Recalculate pathway target loop
+if(bot.team === 'Seeker') {
+// Track down closest live player avatar target signature profile matching group parameters
+let target = null;
+let closestD = 9999;
+if(playerEntity.team === 'Hider') {
+let dx = playerEntity.x - bot.x;
+let dz = playerEntity.z - bot.z;
+closestD = Math.sqrt(dxdx + dzdz);
+target = playerEntity;
+}
+entities.forEach(other => {
+if(other.team === 'Hider' && !other.isEliminated) {
+let dx = other.x - bot.x;
+let dz = other.z - bot.z;
+let d = Math.sqrt(dxdx + dzdz);
+if(d < closestD) { closestD = d; target = other; }
+}
+});
+if(target) {
+bot.targetX = target.x;
+bot.targetZ = target.z;
+}
+} else {
+// Hider AI Logic Loop behavior strategy
+if(state.phase === 'PREP') {
+// Find nearby blocks and gather near them to block passages
+let closestBlock = interactables[Math.floor(Math.random() * interactables.length)];
+if(closestBlock) {
+bot.targetX = closestBlock.x + (Math.random()-0.5)*4;
+bot.targetZ = closestBlock.z + (Math.random()-0.5)*4;
+}
+} else {
+// Run opposite to closest approaching threat target coordinates vector signature
+let dangerX = 0, dangerZ = 0;
+entities.forEach(s => {
+if(s.team === 'Seeker') { dangerX = s.x; dangerZ = s.z; }
+});
+if(playerEntity.team === 'Seeker') { dangerX = playerEntity.x; dangerZ = playerEntity.z; }
+let dirX = bot.x - dangerX;
+let dirZ = bot.z - dangerZ;
+let len = Math.sqrt(dirXdirX + dirZdirZ);
+// Target location inverted boundary zone pushback vectors
+bot.targetX = bot.x + (dirX/len) * 12 + (Math.random()-0.5)*5;
+bot.targetZ = bot.z + (dirZ/len) * 12 + (Math.random()-0.5)*5;
+}
+}
+}
+// Compute steps movement calculations toward target
+let dx = bot.targetX - bot.x;
+let dz = bot.targetZ - bot.z;
+let dist = Math.sqrt(dxdx + dzdz);
+if(dist > 0.5) {
+bot.vx = (dx / dist) * bot.speed;
+bot.vz = (dz / dist) * bot.speed;
+bot.mesh.rotation.y = Math.atan2(dx, dz);
+} else {
+bot.vx = 0; bot.vz = 0;
+}
+});
+}
+function resolvePhysicsCollisions() {
+const dt = 0.016;
+// 1. Move Player & Check Boundaries
+playerEntity.x += playerEntity.vx * dt;
+playerEntity.z += playerEntity.vz * dt;
+keepInBounds(playerEntity);
+// 2. Move AI Agents & Boundaries
+entities.forEach(bot => {
+if(bot.isEliminated) return;
+bot.x += bot.vx * dt;
+bot.z += bot.vz * dt;
+keepInBounds(bot);
+});
+// 3. Update Holding Positions
+if(playerEntity.holdingObj) {
+// Align object slightly in front of facing angle parameters
+let heading = playerEntity.mesh.rotation.y;
+playerEntity.holdingObj.x = playerEntity.x + Math.sin(heading) * 2.5;
+playerEntity.holdingObj.z = playerEntity.z + Math.cos(heading) * 2.5;
+}
+// Sync structural spatial layout mesh positions
+interactables.forEach(obj => {
+obj.mesh.position.x = obj.x;
+obj.mesh.position.z = obj.z;
+});
+// 4. Handle Inter-Agent Physics and Intersections
+entities.forEach(bot => {
+if(bot.isEliminated) return;
+// Check tag intersection criteria between seeker and player entity
+if(state.phase === 'SEEK') {
+if(bot.team === 'Seeker' && playerEntity.team === 'Hider') {
+let dx = bot.x - playerEntity.x;
+let dz = bot.z - playerEntity.z;
+if(Math.sqrt(dxdx + dzdz) < (bot.radius + playerEntity.radius)) {
+endGame('You were captured by Seeker AI Agents!');
+}
+}
+if(bot.team === 'Hider' && playerEntity.team === 'Seeker') {
+let dx = bot.x - playerEntity.x;
+let dz = bot.z - playerEntity.z;
+if(Math.sqrt(dxdx + dzdz) < (bot.radius + playerEntity.radius)) {
+bot.isEliminated = true;
+scene.remove(bot.mesh);
+updateHidersCountDisplay();
+}
+}
+// AI Seeker tags AI Hider
+entities.forEach(other => {
+if(bot.team === 'Seeker' && other.team === 'Hider' && !other.isEliminated) {
+let dx = bot.x - other.x;
+let dz = bot.z - other.z;
+if(Math.sqrt(dxdx + dzdz) < (bot.radius + other.radius)) {
+other.isEliminated = true;
+scene.remove(other.mesh);
+updateHidersCountDisplay();
+}
+}
+});
+}
+});
+// Sync visual meshes transformations
+playerEntity.mesh.position.set(playerEntity.x, 1, playerEntity.z);
+entities.forEach(bot => {
+if(!bot.isEliminated) bot.mesh.position.set(bot.x, 1, bot.z);
+});
+}
+function keepInBounds(ent) {
+const limit = ARENA_SIZE / 2 - ent.radius - 1;
+if(ent.x < -limit) ent.x = -limit;
+if(ent.x > limit) ent.x = limit;
+if(ent.z < -limit) ent.z = -limit;
+if(ent.z > limit) ent.z = limit;
+}
+function renderViewportScene() {
+// Smooth Camera Overhead Orbit Tracking Player Movement Pathing
+camera.position.set(playerEntity.x, 22, playerEntity.z + 16);
+camera.lookAt(playerEntity.x, 0, playerEntity.z - 2);
+renderer.render(scene, camera);
+}
