@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Roller Coaster Creator</title>
+    <title>Advanced 3D Roller Coaster Creator</title>
     <style>
         * {
             margin: 0;
@@ -24,21 +24,22 @@
             position: absolute;
             top: 20px;
             left: 20px;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.85);
             color: #fff;
             padding: 20px;
             border-radius: 10px;
-            font-size: 14px;
-            max-width: 300px;
+            font-size: 13px;
+            max-width: 350px;
             z-index: 100;
+            backdrop-filter: blur(10px);
         }
         #ui h2 {
             margin-bottom: 15px;
-            color: #4ecca3;
+            color: #ff6b9d;
         }
         button {
-            background: #4ecca3;
-            color: #000;
+            background: #ff6b9d;
+            color: #fff;
             border: none;
             padding: 10px 15px;
             margin: 5px 0;
@@ -46,19 +47,21 @@
             cursor: pointer;
             font-weight: bold;
             width: 100%;
-            transition: background 0.3s;
+            transition: all 0.3s;
         }
         button:hover {
-            background: #3ab385;
+            background: #ff4757;
+            transform: scale(1.02);
         }
         button:disabled {
             background: #666;
             cursor: not-allowed;
+            transform: scale(1);
         }
         #info {
             margin-top: 15px;
-            font-size: 12px;
-            line-height: 1.6;
+            font-size: 11px;
+            line-height: 1.8;
             color: #ccc;
         }
         .status {
@@ -66,22 +69,51 @@
             font-weight: bold;
             margin: 10px 0;
         }
+        .controls {
+            background: rgba(255, 107, 157, 0.1);
+            padding: 10px;
+            border-left: 3px solid #ff6b9d;
+            margin: 10px 0;
+            border-radius: 3px;
+        }
+        #selectedInfo {
+            background: rgba(0, 200, 255, 0.1);
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+            border-left: 3px solid #00c8ff;
+        }
     </style>
 </head>
 <body>
     <div id="ui">
-        <h2>🎢 Coaster Creator</h2>
+        <h2>🎢 Advanced Coaster Creator</h2>
         <div id="mode-display" class="status">Mode: Build</div>
+        
+        <div class="controls">
+            <strong>🎮 Movement:</strong>
+            <p>W/A/S/D - Walk around<br>SPACE - Jump<br>Mouse - Look around</p>
+        </div>
+
+        <div class="controls">
+            <strong>🛠️ Editing:</strong>
+            <p>Click track points to select<br>Drag - Move point<br>↑/↓ - Rotate<br>DEL - Remove point</p>
+        </div>
+
         <button id="addPointBtn">📍 Add Track Point</button>
         <button id="clearBtn">🗑️ Clear Track</button>
         <button id="rideBtn" disabled>🚀 Ride Coaster</button>
         <button id="stopRideBtn" disabled>⏹️ Stop Ride</button>
+
+        <div id="selectedInfo" style="display: none;">
+            <strong>Selected Point:</strong><br>
+            <span id="selectedIndex"></span><br>
+            Use ↑↓ to rotate, drag to move
+        </div>
+
         <div id="info">
-            <p><strong>Build Mode:</strong></p>
-            <p>Click "Add Track Point" to place coaster points. Place at least 3 points.</p>
-            <p><strong>Ride Mode:</strong></p>
-            <p>Camera follows the coaster with smooth physics and acceleration.</p>
             <p id="pointCount">Points: 0</p>
+            <p id="speedometer" style="display:none;">Speed: 0%</p>
         </div>
     </div>
 
@@ -89,47 +121,149 @@
     <script>
         // Scene setup
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x1a1a2e);
-        scene.fog = new THREE.Fog(0x1a1a2e, 500, 1000);
+        scene.background = new THREE.Color(0x0d1b2a);
+        scene.fog = new THREE.Fog(0x0d1b2a, 800, 1500);
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
-        camera.position.set(0, 50, 100);
+        camera.position.set(0, 25, 50);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFShadowShadowMap;
+        renderer.shadowMap.mapSize.width = 2048;
+        renderer.shadowMap.mapSize.height = 2048;
         document.body.appendChild(renderer.domElement);
 
-        // Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        // Lighting - improved
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
         scene.add(ambientLight);
 
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(100, 150, 100);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        directionalLight.position.set(150, 200, 100);
         directionalLight.castShadow = true;
-        directionalLight.shadow.mapSize.width = 2048;
-        directionalLight.shadow.mapSize.height = 2048;
-        directionalLight.shadow.camera.far = 500;
+        directionalLight.shadow.mapSize.width = 4096;
+        directionalLight.shadow.mapSize.height = 4096;
+        directionalLight.shadow.camera.far = 800;
+        directionalLight.shadow.camera.left = -400;
+        directionalLight.shadow.camera.right = 400;
+        directionalLight.shadow.camera.top = 400;
+        directionalLight.shadow.camera.bottom = -400;
         scene.add(directionalLight);
 
-        // Ground
-        const groundGeometry = new THREE.PlaneGeometry(500, 500);
+        // Hemisphere light for better ambient
+        const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x2d5016, 0.6);
+        scene.add(hemiLight);
+
+        // Ground with better material
+        const groundGeometry = new THREE.PlaneGeometry(800, 800);
         const groundMaterial = new THREE.MeshStandardMaterial({
-            color: 0x2d5a3d,
-            roughness: 0.8,
-            metalness: 0.1
+            color: 0x2d5016,
+            roughness: 0.9,
+            metalness: 0.0,
+            map: createGridTexture()
         });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2;
         ground.receiveShadow = true;
         scene.add(ground);
 
+        // Grid texture
+        function createGridTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#2d5016';
+            ctx.fillRect(0, 0, 256, 256);
+            ctx.strokeStyle = '#1a3010';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 256; i += 32) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, 256);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(256, i);
+                ctx.stroke();
+            }
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.repeat.set(4, 4);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            return texture;
+        }
+
+        // Player controller
+        const player = {
+            position: new THREE.Vector3(0, 10, 0),
+            velocity: new THREE.Vector3(0, 0, 0),
+            direction: new THREE.Euler(0, 0, 0, 'YXZ'),
+            speed: 0.3,
+            jumpPower: 0.8,
+            isJumping: false,
+            gravity: -0.015
+        };
+
+        // Input handling
+        const keys = {};
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let selectedPointIndex = -1;
+        let isDraggingPoint = false;
+        let isLooking = false;
+
+        document.addEventListener('keydown', (e) => { keys[e.key.toLowerCase()] = true; });
+        document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isLooking) {
+                player.direction.setFromQuaternion(camera.quaternion);
+                player.direction.order = 'YXZ';
+                player.direction.rotateY(-e.movementX * 0.003);
+                player.direction.rotateX(-e.movementY * 0.003);
+                player.direction.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, player.direction.x));
+                camera.quaternion.setFromEuler(player.direction);
+            }
+
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        document.addEventListener('mousedown', (e) => {
+            if (e.button === 0) {
+                isLooking = true;
+                document.pointerLockElement || document.documentElement.requestPointerLock();
+            }
+        });
+
+        document.addEventListener('mouseup', (e) => {
+            if (e.button === 0) {
+                isLooking = false;
+                if (document.pointerLockElement) document.exitPointerLock();
+            }
+        });
+
+        document.addEventListener('click', () => {
+            raycaster.setFromCamera(mouse, camera);
+            let selected = false;
+            trackPointVisuals.forEach((visual, index) => {
+                if (raycaster.ray.distanceToPoint(visual.position) < 10) {
+                    selectPoint(index);
+                    selected = true;
+                }
+            });
+            if (!selected) deselectPoint();
+        });
+
         // Coaster track
         let trackPoints = [];
+        let trackRotations = [];
         let curve = null;
         let trackMesh = null;
         const trackPointVisuals = [];
+        const supportBeams = [];
         let isRiding = false;
         let rideProgress = 0;
         let rideSpeed = 0;
@@ -141,19 +275,36 @@
         const stopRideBtn = document.getElementById('stopRideBtn');
         const modeDisplay = document.getElementById('mode-display');
         const pointCountDisplay = document.getElementById('pointCount');
+        const selectedInfo = document.getElementById('selectedInfo');
+        const speedometer = document.getElementById('speedometer');
+
+        function selectPoint(index) {
+            selectedPointIndex = index;
+            selectedInfo.style.display = 'block';
+            document.getElementById('selectedIndex').textContent = `Point ${index + 1}`;
+        }
+
+        function deselectPoint() {
+            selectedPointIndex = -1;
+            selectedInfo.style.display = 'none';
+        }
 
         function addTrackPoint() {
             const randomX = (Math.random() - 0.5) * 200;
             const randomZ = (Math.random() - 0.5) * 200;
-            const height = Math.random() * 150 + 10;
+            const height = Math.random() * 120 + 20;
             trackPoints.push(new THREE.Vector3(randomX, height, randomZ));
+            trackRotations.push(0);
             updateTrackVisuals();
         }
 
         function clearTrack() {
             trackPoints = [];
+            trackRotations = [];
             trackPointVisuals.forEach(v => scene.remove(v));
             trackPointVisuals.length = 0;
+            supportBeams.forEach(b => scene.remove(b));
+            supportBeams.length = 0;
             if (trackMesh) scene.remove(trackMesh);
             trackMesh = null;
             curve = null;
@@ -161,144 +312,79 @@
             rideBtn.disabled = true;
             isRiding = false;
             rideProgress = 0;
+            deselectPoint();
         }
 
-        function updateTrackVisuals() {
-            // Remove old visuals
-            trackPointVisuals.forEach(v => scene.remove(v));
-            trackPointVisuals.length = 0;
+        function createRealisticTrack(curve) {
+            if (trackMesh && trackMesh.userData.railGroup) {
+                scene.remove(trackMesh.userData.railGroup);
+            }
 
-            // Add point spheres
-            trackPoints.forEach((point, index) => {
-                const sphereGeometry = new THREE.SphereGeometry(5, 16, 16);
-                const sphereMaterial = new THREE.MeshStandardMaterial({
-                    color: new THREE.Color().setHSL(index / trackPoints.length, 0.8, 0.5),
-                    emissive: new THREE.Color().setHSL(index / trackPoints.length, 0.8, 0.3),
-                    metalness: 0.7,
-                    roughness: 0.2
-                });
-                const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-                sphere.position.copy(point);
-                sphere.castShadow = true;
-                scene.add(sphere);
-                trackPointVisuals.push(sphere);
+            const points = curve.getPoints(Math.max(trackPoints.length * 30, 150));
+            const railGroup = new THREE.Group();
+
+            // Main rails (two parallel tracks)
+            const railGeometry = new THREE.BufferGeometry().setFromPoints(points);
+            const railMaterial = new THREE.MeshStandardMaterial({
+                color: 0xc0c0c0,
+                metalness: 0.95,
+                roughness: 0.1,
+                emissive: 0x333333
             });
 
-            // Update track mesh
-            if (trackPoints.length >= 3) {
-                if (trackMesh) scene.remove(trackMesh);
+            // Left rail
+            const leftRailPoints = points.map((p, i) => {
+                const tangent = curve.getTangent(i / points.length);
+                const normal = new THREE.Vector3(0, 1, 0);
+                if (Math.abs(tangent.dot(normal)) < 0.99) {
+                    normal.crossVectors(tangent, new THREE.Vector3(0, 0, 1)).normalize();
+                    normal.crossVectors(tangent, normal).normalize();
+                } else {
+                    normal.set(1, 0, 0);
+                }
+                return p.clone().addScaledVector(normal, 8);
+            });
 
-                curve = new THREE.CatmullRomCurve3(trackPoints);
-                const points = curve.getPoints(Math.max(trackPoints.length * 20, 100));
-                const trackGeometry = new THREE.BufferGeometry().setFromPoints(points);
+            // Right rail
+            const rightRailPoints = points.map((p, i) => {
+                const tangent = curve.getTangent(i / points.length);
+                const normal = new THREE.Vector3(0, 1, 0);
+                if (Math.abs(tangent.dot(normal)) < 0.99) {
+                    normal.crossVectors(tangent, new THREE.Vector3(0, 0, 1)).normalize();
+                    normal.crossVectors(tangent, normal).normalize();
+                } else {
+                    normal.set(1, 0, 0);
+                }
+                return p.clone().addScaledVector(normal, -8);
+            });
 
-                const trackMaterial = new THREE.LineBasicMaterial({
-                    color: 0xff6b6b,
-                    linewidth: 3
-                });
-                trackMesh = new THREE.Line(trackGeometry, trackMaterial);
-                scene.add(trackMesh);
+            // Create rails using LatheGeometry for realistic tubing
+            points.forEach((p, i) => {
+                const railRadius = 2;
+                const geometry = new THREE.CylinderGeometry(railRadius, railRadius, 0.5, 8);
+                const mesh = new THREE.Mesh(geometry, railMaterial);
+                mesh.position.copy(leftRailPoints[i]);
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                railGroup.add(mesh);
+            });
 
-                // Create 3D track (tube)
-                const tubeGeometry = new THREE.TubeGeometry(curve, 50, 8, 8, false);
-                const tubeMaterial = new THREE.MeshStandardMaterial({
-                    color: 0xffaa00,
-                    metalness: 0.8,
-                    roughness: 0.2,
-                    emissive: 0x663300
-                });
-                const tubeMesh = new THREE.Mesh(tubeGeometry, tubeMaterial);
-                tubeMesh.castShadow = true;
-                tubeMesh.receiveShadow = true;
+            points.forEach((p, i) => {
+                const railRadius = 2;
+                const geometry = new THREE.CylinderGeometry(railRadius, railRadius, 0.5, 8);
+                const mesh = new THREE.Mesh(geometry, railMaterial);
+                mesh.position.copy(rightRailPoints[i]);
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                railGroup.add(mesh);
+            });
 
-                if (trackMesh.userData.tube) scene.remove(trackMesh.userData.tube);
-                scene.add(tubeMesh);
-                trackMesh.userData.tube = tubeMesh;
+            // Cross beams
+            for (let i = 0; i < points.length; i += 5) {
+                const leftPoint = leftRailPoints[i];
+                const rightPoint = rightRailPoints[i];
+                const distance = leftPoint.distanceTo(rightPoint);
+                const midPoint = new THREE.Vector3().addVectors(leftPoint, rightPoint).multiplyScalar(0.5);
 
-                pointCountDisplay.textContent = `Points: ${trackPoints.length}`;
-                rideBtn.disabled = false;
-            } else {
-                rideBtn.disabled = true;
-            }
-        }
-
-        function startRide() {
-            if (trackPoints.length < 3) return;
-            isRiding = true;
-            rideProgress = 0;
-            rideSpeed = 0;
-            modeDisplay.textContent = 'Mode: Riding 🎢';
-            addPointBtn.disabled = true;
-            clearBtn.disabled = true;
-            rideBtn.disabled = true;
-            stopRideBtn.disabled = false;
-        }
-
-        function stopRide() {
-            isRiding = false;
-            modeDisplay.textContent = 'Mode: Build';
-            addPointBtn.disabled = false;
-            clearBtn.disabled = false;
-            rideBtn.disabled = false;
-            stopRideBtn.disabled = true;
-        }
-
-        function updateRide() {
-            if (!isRiding || !curve) return;
-
-            // Physics: acceleration and deceleration
-            const acceleration = 0.005;
-            const maxSpeed = 0.015;
-            const friction = 0.98;
-
-            rideSpeed += acceleration;
-            rideSpeed = Math.min(rideSpeed, maxSpeed);
-            rideSpeed *= friction;
-
-            rideProgress += rideSpeed;
-
-            if (rideProgress >= 1) {
-                rideProgress = 0;
-                rideSpeed = 0;
-            }
-
-            // Get position on curve
-            const position = curve.getPoint(rideProgress);
-            const positionAhead = curve.getPoint(Math.min(rideProgress + 0.05, 1));
-
-            // Camera follows with offset
-            const offset = new THREE.Vector3(0, 15, -30);
-            offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), Math.sin(rideProgress * Math.PI * 2) * 0.3);
-
-            camera.position.lerp(position.clone().add(offset), 0.1);
-            camera.lookAt(positionAhead);
-        }
-
-        // Event listeners
-        addPointBtn.addEventListener('click', addTrackPoint);
-        clearBtn.addEventListener('click', clearTrack);
-        rideBtn.addEventListener('click', startRide);
-        stopRideBtn.addEventListener('click', stopRide);
-
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
-        // Animation loop
-        function animate() {
-            requestAnimationFrame(animate);
-            updateRide();
-            renderer.render(scene, camera);
-        }
-
-        animate();
-
-        // Start with some initial points
-        addTrackPoint();
-        addTrackPoint();
-        addTrackPoint();
-    </script>
-</body>
-</html>
+                const crossBeamGeometry = new THREE.CylinderGeometry(1.5, 1.5, distance, 8);
+                const crossBeamMaterial = new THREE.MeshSt
