@@ -25,6 +25,7 @@
             position: absolute;
             top: 0;
             left: 0;
+            z-index: 1;
         }
         #ui-layer {
             position: absolute;
@@ -37,9 +38,11 @@
             flex-direction: column;
             justify-content: space-between;
             padding: 15px;
+            z-index: 10;
         }
         .interactive {
-            pointer-events: auto;
+            pointer-events: auto !important;
+            cursor: pointer !important;
         }
         /* Menu Overlay */
         #menu-overlay {
@@ -57,6 +60,7 @@
             color: #fff;
             padding: 20px;
             text-align: center;
+            pointer-events: auto;
         }
         h1 {
             font-size: 2.5rem;
@@ -103,6 +107,7 @@
             transition: all 0.2s;
             background: #334155;
             color: #94a3b8;
+            pointer-events: auto !important;
         }
         .btn.active {
             background: #0284c7;
@@ -117,6 +122,7 @@
             font-size: 1.2rem;
             border-radius: 10px;
             box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+            pointer-events: auto !important;
         }
         #start-btn:hover {
             background: #059669;
@@ -127,6 +133,7 @@
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
+            pointer-events: none;
         }
         .hud-panel {
             background: rgba(15, 23, 42, 0.75);
@@ -161,6 +168,7 @@
             justify-content: space-between;
             align-items: flex-end;
             padding-bottom: 10px;
+            pointer-events: none;
         }
         #joystick-zone {
             width: 130px;
@@ -181,11 +189,13 @@
             border-radius: 50%;
             position: absolute;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            pointer-events: none;
         }
         #action-zone {
             display: flex;
             flex-direction: column;
             gap: 12px;
+            pointer-events: none;
         }
         .action-btn {
             width: 70px;
@@ -283,7 +293,7 @@
         <h1>Multi-Agent Hide & Seek</h1>
         <p class="subtitle">Inspired by OpenAI's emergent co-evolution simulation. Use tools, build shelters, lock entryways, or deploy ramps to cross barricades.</p>
         
-        <div class="menu-card interactive">
+        <div class="menu-card">
             <div class="section-title">1. Choose Match Type</div>
             <div class="btn-group">
                 <button class="btn active" id="mode-ai">vs AI Agents</button>
@@ -296,25 +306,23 @@
                 <button class="btn" id="role-seeker" style="border-bottom: 3px solid #f87171;">Play as Seeker</button>
             </div>
 
-            <button id="start-btn" class="btn">Deploy into Sandbox</button>
+            <button id="start-btn">Deploy into Sandbox</button>
         </div>
     </div>
 
     <script>
         // --- Configuration & Constants ---
         const ARENA_SIZE = 50;
-        const PREP_TIME = 20; 
-        const SEEK_TIME = 40;
-        
-        // --- State Management Engine ---
-        let state = {
-            gameMode: 'AI', // 'AI' or 'Online'
-            playerRole: 'Hider', // 'Hider' or 'Seeker'
-            phase: 'PREP', // 'PREP' or 'SEEK'
-            timeLeft: PREP_TIME,
-            running: false,
-            isOnlineConnected: false,
-mockPeerId: 'Player_' + Math.floor(Math.random()*9000+1000)
+const PREP_TIME = 20;
+const SEEK_TIME = 40;
+// --- State Management Engine ---
+let state = {
+gameMode: 'AI',
+playerRole: 'Hider',
+phase: 'PREP',
+timeLeft: PREP_TIME,
+running: false,
+isOnlineConnected: false
 };
 // --- Core Object Entities ---
 let scene, camera, renderer;
@@ -325,9 +333,9 @@ vx: 0, vz: 0, speed: 11,
 holdingObj: null,
 team: 'Hider'
 };
-let entities = []; // Holds AI agents and remote simulation instances
-let interactables = []; // Props, blocks, ramps
-// --- UI Interactions ---
+let entities = [];
+let interactables = [];
+// --- UI Interactions elements ---
 const menuOverlay = document.getElementById('menu-overlay');
 const startBtn = document.getElementById('start-btn');
 const btnAi = document.getElementById('mode-ai');
@@ -347,15 +355,17 @@ let keys = {};
 let joystickInput = { x: 0, y: 0 };
 let isJoystickActive = false;
 let joyStart = { x: 0, y: 0 };
-// --- Configuration Handlers ---
-btnAi.onclick = () => { btnAi.classList.add('active'); btnOnline.classList.remove('active'); state.gameMode = 'AI'; };
-btnOnline.onclick = () => { btnOnline.classList.add('active'); btnAi.classList.remove('active'); state.gameMode = 'Online'; };
-btnHider.onclick = () => { btnHider.classList.add('active'); btnSeeker.classList.remove('active'); state.playerRole = 'Hider'; };
-btnSeeker.onclick = () => { btnSeeker.classList.add('active'); btnHider.classList.remove('active'); state.playerRole = 'Seeker'; };
-startBtn.onclick = () => {
-menuOverlay.style.display = 'none';
-initGame();
-};
+// --- Setup Menu Interaction Event Listeners Explicitly ---
+btnAi.addEventListener('click', (e) => { e.preventDefault(); btnAi.classList.add('active'); btnOnline.classList.remove('active'); state.gameMode = 'AI'; });
+btnAi.addEventListener('touchstart', (e) => { e.preventDefault(); btnAi.classList.add('active'); btnOnline.classList.remove('active'); state.gameMode = 'AI'; });
+btnOnline.addEventListener('click', (e) => { e.preventDefault(); btnOnline.classList.add('active'); btnAi.classList.remove('active'); state.gameMode = 'Online'; });
+btnOnline.addEventListener('touchstart', (e) => { e.preventDefault(); btnOnline.classList.add('active'); btnAi.classList.remove('active'); state.gameMode = 'Online'; });
+btnHider.addEventListener('click', (e) => { e.preventDefault(); btnHider.classList.add('active'); btnSeeker.classList.remove('active'); state.playerRole = 'Hider'; });
+btnHider.addEventListener('touchstart', (e) => { e.preventDefault(); btnHider.classList.add('active'); btnSeeker.classList.remove('active'); state.playerRole = 'Hider'; });
+btnSeeker.addEventListener('click', (e) => { e.preventDefault(); btnSeeker.classList.add('active'); btnHider.classList.remove('active'); state.playerRole = 'Seeker'; });
+btnSeeker.addEventListener('touchstart', (e) => { e.preventDefault(); btnSeeker.classList.add('active'); btnHider.classList.remove('active'); state.playerRole = 'Seeker'; });
+startBtn.addEventListener('click', (e) => { e.preventDefault(); menuOverlay.style.display = 'none'; initGame(); });
+startBtn.addEventListener('touchstart', (e) => { e.preventDefault(); menuOverlay.style.display = 'none'; initGame(); });
 // --- Game Setup Engine ---
 function initGame() {
 state.running = true;
@@ -366,7 +376,6 @@ roleDisplay.textContent = playerEntity.team;
 roleDisplay.className = playerEntity.team === 'Hider' ? 'team-hider' : 'team-seeker';
 if (state.gameMode === 'Online') {
 matchmakingStatus.textContent = "Connected to Global Sandbox";
-setupMockOnlineSync();
 } else {
 matchmakingStatus.textContent = "Local Agent Simulation";
 }
@@ -374,16 +383,15 @@ setupThreeJS();
 buildEnvironment();
 spawnEntities();
 setupInputListeners();
-// Start clock loop countdown
 clearInterval(this.clockInterval);
 this.clockInterval = setInterval(updateClock, 1000);
 animate(0);
 }
 function setupThreeJS() {
 const container = document.getElementById('canvas-container');
-container.innerHTML = ''; // Clean canvas reset
+container.innerHTML = '';
 scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0f172a); // Deep modern slate blue background
+scene.background = new THREE.Color(0x0f172a);
 scene.fog = new THREE.FogExp2(0x0f172a, 0.015);
 camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
 renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -391,7 +399,6 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 container.appendChild(renderer.domElement);
-// Lighting Design
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
 scene.add(ambientLight);
 const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -399,8 +406,6 @@ sunLight.position.set(30, 40, 20);
 sunLight.castShadow = true;
 sunLight.shadow.mapSize.width = 2048;
 sunLight.shadow.mapSize.height = 2048;
-sunLight.shadow.camera.near = 0.5;
-sunLight.shadow.camera.far = 150;
 const d = 40;
 sunLight.shadow.camera.left = -d;
 sunLight.shadow.camera.right = d;
@@ -409,22 +414,15 @@ sunLight.shadow.camera.bottom = -d;
 scene.add(sunLight);
 }
 function buildEnvironment() {
-// Textured / Clean Multi-Grid Playground Ground
 const floorGeo = new THREE.PlaneGeometry(ARENA_SIZE, ARENA_SIZE);
-const floorMat = new THREE.MeshStandardMaterial({
-color: 0x1e293b,
-roughness: 0.8,
-metalness: 0.1
-});
+const floorMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
 const floor = new THREE.Mesh(floorGeo, floorMat);
 floor.rotation.x = -Math.PI / 2;
 floor.receiveShadow = true;
 scene.add(floor);
-// Tech Wireframe Grid Overlay for Alignment Reference
 const grid = new THREE.GridHelper(ARENA_SIZE, ARENA_SIZE, 0x334155, 0x1e293b);
 grid.position.y = 0.01;
 scene.add(grid);
-// Perimeter Boundaries Structural Layout
 const wallMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5 });
 const thicknesses = 2;
 const height = 4;
@@ -442,14 +440,10 @@ mesh.receiveShadow = true;
 mesh.castShadow = true;
 scene.add(mesh);
 });
-// Procedural Obstacles & Shelters Placement Loop
 interactables = [];
-// Build 4 Static Internal Fixed Pillars
 const pillarGeo = new THREE.BoxGeometry(4, 4, 4);
 const pillarMat = new THREE.MeshStandardMaterial({ color: 0x475569 });
-const fixedPositions = [
-{x: -10, z: 5}, {x: 10, z: -5}, {x: -5, z: 12}, {x: 8, z: 10}
-];
+const fixedPositions = [{x: -10, z: 5}, {x: 10, z: -5}, {x: -5, z: 12}, {x: 8, z: 10}];
 fixedPositions.forEach(pos => {
 const mesh = new THREE.Mesh(pillarGeo, pillarMat);
 mesh.position.set(pos.x, 2, pos.z);
@@ -457,21 +451,11 @@ mesh.castShadow = true;
 mesh.receiveShadow = true;
 scene.add(mesh);
 });
-// Spawn Moveable Standard Building Blocks (Shelter Components)
 for(let i=0; i<8; i++) {
-createMoveableBlock(
-(Math.random() - 0.5) * 25,
-(Math.random() - 0.5) * 25,
-'cube'
-);
+createMoveableBlock((Math.random() - 0.5) * 25, (Math.random() - 0.5) * 25, 'cube');
 }
-// Spawn Moveable Strategic Advantage Ramps
 for(let i=0; i<3; i++) {
-createMoveableBlock(
-(Math.random() - 0.5) * 30,
-(Math.random() - 0.5) * 30,
-'ramp'
-);
+createMoveableBlock((Math.random() - 0.5) * 30, (Math.random() - 0.5) * 30, 'ramp');
 }
 }
 function createMoveableBlock(x, z, type) {
@@ -479,21 +463,21 @@ let geo, mat;
 if(type === 'cube') {
 geo = new THREE.BoxGeometry(3, 2, 3);
 mat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.4 });
-} else { // Wedge / Ramp Shape Geometry Engine
+} else {
 geo = new THREE.BufferGeometry();
 const vertices = new Float32Array([
--2, 0,  2,   2, 0,  2,   -2, 2,  2,  // Face Front Left Corner
-2, 0,  2,   2, 2, -2,   -2, 2,  2,  // Incline slope plane
--2, 0, -2,  -2, 0,  2,   -2, 2,  2,  // Left side profile wall
-2, 0,  2,   2, 0, -2,   2, 2, -2,   // Right side profile wall
--2, 0, -2,   2, 0, -2,   2, 2, -2,   // Back panel shield
+-2, 0,  2,   2, 0,  2,   -2, 2,  2,
+2, 0,  2,   2, 2, -2,   -2, 2,  2,
+-2, 0, -2,  -2, 0,  2,   -2, 2,  2,
+2, 0,  2,   2, 0, -2,   2, 2, -2,
+-2, 0, -2,   2, 0, -2,   2, 2, -2,
 -2, 0, -2,  -2, 2,  2,   2, 2, -2,
--2, 0, -2,   2, 0, -2,   2, 0,  2,   // Floor panel footprint
+-2, 0, -2,   2, 0, -2,   2, 0,  2,
 2, 0,  2,  -2, 0,  2,  -2, 0, -2
 ]);
 geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
 geo.computeVertexNormals();
-mat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4 }); // Gold Amber Tint Ramps
+mat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4 });
 }
 const mesh = new THREE.Mesh(geo, mat);
 mesh.position.set(x, type==='cube'? 1 : 0, z);
@@ -501,21 +485,15 @@ mesh.castShadow = true;
 mesh.receiveShadow = true;
 scene.add(mesh);
 interactables.push({
-mesh: mesh,
-type: type,
-x: x, z: z,
-width: 3, depth: 3, height: 2,
-isLocked: false,
-lockedColor: 0xef4444,
-baseColor: type === 'cube' ? 0x64748b : 0xf59e0b
+mesh: mesh, type: type, x: x, z: z,
+width: 3, depth: 3, height: 2, isLocked: false,
+lockedColor: 0xef4444, baseColor: type === 'cube' ? 0x64748b : 0xf59e0b
 });
 }
 function spawnEntities() {
 entities = [];
-// Instantiate Player Unit Mesh Model
 const playerColor = playerEntity.team === 'Hider' ? 0x0ea5e9 : 0xef4444;
 playerEntity.mesh = createAgentVisual(playerColor, playerEntity.team === 'Seeker');
-// Place player based on side distribution
 if(playerEntity.team === 'Seeker') {
 playerEntity.x = 18; playerEntity.z = 18;
 } else {
@@ -523,69 +501,39 @@ playerEntity.x = -16; playerEntity.z = -12;
 }
 playerEntity.mesh.position.set(playerEntity.x, 1, playerEntity.z);
 scene.add(playerEntity.mesh);
-// Simulation Agents Blueprint Spawn Configuration
 const botConfigs = [
 { team: 'Hider', x: -12, z: -18, color: 0x38bdf8 },
 { team: 'Hider', x: -18, z: -6,  color: 0x38bdf8 },
 { team: 'Seeker', x: 18, z: 12,  color: 0xf87171 }
 ];
-// Filter configurations depending on choice selections
 botConfigs.forEach((cfg, index) => {
-// If user plays this slot, bypass assignment
 if(cfg.team === playerEntity.team && index === 0) return;
 let botMesh = createAgentVisual(cfg.color, cfg.team === 'Seeker');
 botMesh.position.set(cfg.x, 1, cfg.z);
 scene.add(botMesh);
 entities.push({
-id: 'bot_' + index,
-mesh: botMesh,
-x: cfg.x, z: cfg.z, radius: 0.9,
-vx: 0, vz: 0,
-speed: cfg.team === 'Seeker' ? 11.5 : 10.5, // Seekers move slightly faster once released
-team: cfg.team,
-isAI: true,
-targetX: cfg.x, targetZ: cfg.z,
-decisionTimer: 0,
-holdingObj: null,
-isEliminated: false
+id: 'bot_' + index, mesh: botMesh, x: cfg.x, z: cfg.z, radius: 0.9,
+vx: 0, vz: 0, speed: cfg.team === 'Seeker' ? 11.5 : 10.5,
+team: cfg.team, isAI: true, targetX: cfg.x, targetZ: cfg.z,
+decisionTimer: 0, holdingObj: null, isEliminated: false
 });
 });
 updateHidersCountDisplay();
 }
 function createAgentVisual(colorHex, isSeeker) {
 const group = new THREE.Group();
-// Main Core Torso Capsule
 const bodyGeo = new THREE.CapsuleGeometry(0.6, 0.8, 4, 8);
 const bodyMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.3 });
 const body = new THREE.Mesh(bodyGeo, bodyMat);
 body.position.y = 0.5;
 body.castShadow = true;
 group.add(body);
-// Team Identity Visor Goggles Overlay
 const visorGeo = new THREE.BoxGeometry(0.7, 0.2, 0.4);
 const visorMat = new THREE.MeshBasicMaterial({ color: isSeeker ? 0xffffff : 0x000000 });
 const visor = new THREE.Mesh(visorGeo, visorMat);
 visor.position.set(0, 1.1, 0.45);
 group.add(visor);
 return group;
-}
-// --- Mock Peer-to-Peer Synchronization Layer ---
-function setupMockOnlineSync() {
-// Emulate dynamic real-time room traffic inside sandbox environment
-setInterval(() => {
-if(!state.running || state.gameMode !== 'Online') return;
-// Randomly assign a remote network action sequence to simulate another live user shifting components
-if(Math.random() < 0.2 && interactables.length > 0) {
-let randomItem = interactables[Math.floor(Math.random() * interactables.length)];
-if(!randomItem.isLocked && randomItem !== playerEntity.holdingObj) {
-randomItem.x += (Math.random() - 0.5) * 4;
-randomItem.z += (Math.random() - 0.5) * 4;
-// Limit boundary check bounds
-randomItem.x = Math.max(-ARENA_SIZE/2+2, Math.min(ARENA_SIZE/2-2, randomItem.x));
-randomItem.z = Math.max(-ARENA_SIZE/2+2, Math.min(ARENA_SIZE/2-2, randomItem.z));
-}
-}
-}, 1500);
 }
 // --- Controller Input Registrations ---
 function setupInputListeners() {
@@ -596,11 +544,13 @@ if(e.key === ' ') { handleGrabToggle(); e.preventDefault(); }
 if(e.key.toLowerCase() === 'l') { handleLockToggle(); }
 };
 window.onkeyup = (e) => { keys[e.key.toLowerCase()] = false; };
-// Wire Up Touch Interface Triggers
-grabBtn.ontouchstart = (e) => { handleGrabToggle(); e.preventDefault(); };
-lockBtn.ontouchstart = (e) => { handleLockToggle(); e.preventDefault(); };
+const triggerGrab = (e) => { e.preventDefault(); handleGrabToggle(); };
+const triggerLock = (e) => { e.preventDefault(); handleLockToggle(); };
+grabBtn.addEventListener('click', triggerGrab);
+grabBtn.addEventListener('touchstart', triggerGrab);
+lockBtn.addEventListener('click', triggerLock);
+lockBtn.addEventListener('touchstart', triggerLock);
 setupJoystick();
-// Resize viewport adjustment listener
 window.addEventListener('resize', () => {
 camera.aspect = window.innerWidth / window.innerHeight;
 camera.updateProjectionMatrix();
@@ -618,10 +568,8 @@ let dist = Math.sqrt(dxdx + dydy);
 if(dist > maxRadius) {
 dx = (dx / dist) * maxRadius;
 dy = (dy / dist) * maxRadius;
-dist = maxRadius;
 }
 nub.style.transform = translate(${dx}px, ${dy}px);
-// Normalise vectors
 joystickInput.x = dx / maxRadius;
 joystickInput.y = dy / maxRadius;
 }
@@ -641,20 +589,16 @@ window.addEventListener('touchend', () => {
 if(!isJoystickActive) return;
 isJoystickActive = false;
 nub.style.transform = 'translate(0px, 0px)';
-joystickInput.x = 0;
-joystickInput.y = 0;
+joystickInput.x = 0; joystickInput.y = 0;
 });
 }
-// --- Interaction Rules Mechanics ---
 function handleGrabToggle() {
 if(playerEntity.holdingObj) {
-// Drop current block object mesh drop configuration
 playerEntity.holdingObj = null;
 holdingStatus.textContent = "Hands Free";
 grabBtn.textContent = "GRAB";
 } else {
-// Look for closest valid object item target profile match
-if(state.phase === 'SEEK' && playerEntity.team === 'Seeker') return; // Seekers can't shift environment components during chase phase
+if(state.phase === 'SEEK' && playerEntity.team === 'Seeker') return;
 let closest = null;
 let minDist = 3.5;
 interactables.forEach(obj => {
@@ -662,10 +606,7 @@ if(obj.isLocked) return;
 let dx = obj.x - playerEntity.x;
 let dz = obj.z - playerEntity.z;
 let d = Math.sqrt(dxdx + dzdz);
-if(d < minDist) {
-minDist = d;
-closest = obj;
-}
+if(d < minDist) { minDist = d; closest = obj; }
 });
 if(closest) {
 playerEntity.holdingObj = closest;
@@ -675,7 +616,6 @@ grabBtn.textContent = "RELEASE";
 }
 }
 function handleLockToggle() {
-// Locking features can be toggled by the player if they stand right next to an element structure block
 let closest = playerEntity.holdingObj;
 if(!closest) {
 let minDist = 4;
@@ -702,7 +642,6 @@ lockBtn.classList.remove('locked-state');
 }
 }
 }
-// --- Clock Interval Tick Engine ---
 function updateClock() {
 if(!state.running) return;
 state.timeLeft--;
@@ -713,7 +652,6 @@ state.timeLeft = SEEK_TIME;
 phaseTitle.textContent = "Active Search Chase";
 phaseTitle.style.color = "#ef4444";
 } else {
-// Match Over Run Complete Evaluation Loop
 endGame('Hiders Avoided Capture! Victory.');
 return;
 }
@@ -723,126 +661,84 @@ timerDisplay.textContent = state.timeLeft;
 function updateHidersCountDisplay() {
 let count = 0;
 if(playerEntity.team === 'Hider') count++;
-entities.forEach(e => {
-if(e.team === 'Hider' && !e.isEliminated) count++;
-});
+entities.forEach(e => { if(e.team === 'Hider' && !e.isEliminated) count++; });
 hidersCountDisplay.textContent = count;
-if(count === 0) {
-endGame('All Hiders Caught! Seeker Victory.');
-}
+if(count === 0) endGame('All Hiders Caught! Seeker Victory.');
 }
 function endGame(msg) {
 state.running = false;
 clearInterval(this.clockInterval);
 alert(msg);
-menuOverlay.style.display = 'flex';
+window.location.reload();
 }
-// --- Physics Engine & Framework Updates ---
-function animate(timestamp) {
+function animate() {
 if(!state.running) return;
 requestAnimationFrame(animate);
 updatePlayerVelocity();
 updateAIAgentsBehavior();
 resolvePhysicsCollisions();
-renderViewportScene();
+camera.position.set(playerEntity.x, 22, playerEntity.z + 16);
+camera.lookAt(playerEntity.x, 0, playerEntity.z - 2);
+renderer.render(scene, camera);
 }
 function updatePlayerVelocity() {
-// Keyboard Vector Synthesis Engine
-let mx = 0;
-let mz = 0;
+let mx = 0, mz = 0;
 if(keys['w'] || keys['arrowup']) mz = -1;
 if(keys['s'] || keys['arrowdown']) mz = 1;
 if(keys['a'] || keys['arrowleft']) mx = -1;
 if(keys['d'] || keys['arrowright']) mx = 1;
-// Blend keyboard inputs with Touch Stick Values
-if(isJoystickActive) {
-mx = joystickInput.x;
-mz = joystickInput.y;
-}
-// Normalise input trajectory speeds
+if(isJoystickActive) { mx = joystickInput.x; mz = joystickInput.y; }
 let len = Math.sqrt(mxmx + mzmz);
 if(len > 0) {
-mx /= len;
-mz /= len;
-// Freeze seekers during preparation timer loops
-if(state.phase === 'PREP' && playerEntity.team === 'Seeker') {
-mx = 0; mz = 0;
-}
+mx /= len; mz /= len;
+if(state.phase === 'PREP' && playerEntity.team === 'Seeker') { mx = 0; mz = 0; }
 playerEntity.vx = mx * playerEntity.speed;
 playerEntity.vz = mz * playerEntity.speed;
-// Rotate body alignment group heading direction smoothly
-let angle = Math.atan2(mx, mz);
-playerEntity.mesh.rotation.y = angle;
+playerEntity.mesh.rotation.y = Math.atan2(mx, mz);
 } else {
-playerEntity.vx = 0;
-playerEntity.vz = 0;
+playerEntity.vx = 0; playerEntity.vz = 0;
 }
 }
 function updateAIAgentsBehavior() {
 entities.forEach(bot => {
 if(bot.isEliminated) return;
-// If Seeker AI and game is currently running under preparation timeline, restrict movement
-if(state.phase === 'PREP' && bot.team === 'Seeker') {
-bot.vx = 0; bot.vz = 0;
-return;
-}
-bot.decisionTimer -= 0.016; // Approx tick step segment calculation
+if(state.phase === 'PREP' && bot.team === 'Seeker') { bot.vx = 0; bot.vz = 0; return; }
+bot.decisionTimer -= 0.016;
 if(bot.decisionTimer <= 0) {
-bot.decisionTimer = Math.random() * 2 + 1; // Recalculate pathway target loop
+bot.decisionTimer = Math.random() * 2 + 1;
 if(bot.team === 'Seeker') {
-// Track down closest live player avatar target signature profile matching group parameters
-let target = null;
-let closestD = 9999;
+let target = null, closestD = 9999;
 if(playerEntity.team === 'Hider') {
-let dx = playerEntity.x - bot.x;
-let dz = playerEntity.z - bot.z;
-closestD = Math.sqrt(dxdx + dzdz);
-target = playerEntity;
+let dx = playerEntity.x - bot.x, dz = playerEntity.z - bot.z;
+closestD = Math.sqrt(dxdx + dzdz); target = playerEntity;
 }
 entities.forEach(other => {
 if(other.team === 'Hider' && !other.isEliminated) {
-let dx = other.x - bot.x;
-let dz = other.z - bot.z;
+let dx = other.x - bot.x, dz = other.z - bot.z;
 let d = Math.sqrt(dxdx + dzdz);
 if(d < closestD) { closestD = d; target = other; }
 }
 });
-if(target) {
-bot.targetX = target.x;
-bot.targetZ = target.z;
-}
+if(target) { bot.targetX = target.x; bot.targetZ = target.z; }
 } else {
-// Hider AI Logic Loop behavior strategy
 if(state.phase === 'PREP') {
-// Find nearby blocks and gather near them to block passages
-let closestBlock = interactables[Math.floor(Math.random() * interactables.length)];
-if(closestBlock) {
-bot.targetX = closestBlock.x + (Math.random()-0.5)*4;
-bot.targetZ = closestBlock.z + (Math.random()-0.5)*4;
-}
+let block = interactables[Math.floor(Math.random() * interactables.length)];
+if(block) { bot.targetX = block.x + (Math.random()-0.5)4; bot.targetZ = block.z + (Math.random()-0.5)4; }
 } else {
-// Run opposite to closest approaching threat target coordinates vector signature
 let dangerX = 0, dangerZ = 0;
-entities.forEach(s => {
-if(s.team === 'Seeker') { dangerX = s.x; dangerZ = s.z; }
-});
+entities.forEach(s => { if(s.team === 'Seeker') { dangerX = s.x; dangerZ = s.z; } });
 if(playerEntity.team === 'Seeker') { dangerX = playerEntity.x; dangerZ = playerEntity.z; }
-let dirX = bot.x - dangerX;
-let dirZ = bot.z - dangerZ;
+let dirX = bot.x - dangerX, dirZ = bot.z - dangerZ;
 let len = Math.sqrt(dirXdirX + dirZdirZ);
-// Target location inverted boundary zone pushback vectors
 bot.targetX = bot.x + (dirX/len) * 12 + (Math.random()-0.5)*5;
 bot.targetZ = bot.z + (dirZ/len) * 12 + (Math.random()-0.5)*5;
 }
 }
 }
-// Compute steps movement calculations toward target
-let dx = bot.targetX - bot.x;
-let dz = bot.targetZ - bot.z;
+let dx = bot.targetX - bot.x, dz = bot.targetZ - bot.z;
 let dist = Math.sqrt(dxdx + dzdz);
 if(dist > 0.5) {
-bot.vx = (dx / dist) * bot.speed;
-bot.vz = (dz / dist) * bot.speed;
+bot.vx = (dx / dist) * bot.speed; bot.vz = (dz / dist) * bot.speed;
 bot.mesh.rotation.y = Math.atan2(dx, dz);
 } else {
 bot.vx = 0; bot.vz = 0;
@@ -851,80 +747,43 @@ bot.vx = 0; bot.vz = 0;
 }
 function resolvePhysicsCollisions() {
 const dt = 0.016;
-// 1. Move Player & Check Boundaries
-playerEntity.x += playerEntity.vx * dt;
-playerEntity.z += playerEntity.vz * dt;
+playerEntity.x += playerEntity.vx * dt; playerEntity.z += playerEntity.vz * dt;
 keepInBounds(playerEntity);
-// 2. Move AI Agents & Boundaries
 entities.forEach(bot => {
 if(bot.isEliminated) return;
-bot.x += bot.vx * dt;
-bot.z += bot.vz * dt;
+bot.x += bot.vx * dt; bot.z += bot.vz * dt;
 keepInBounds(bot);
 });
-// 3. Update Holding Positions
 if(playerEntity.holdingObj) {
-// Align object slightly in front of facing angle parameters
 let heading = playerEntity.mesh.rotation.y;
 playerEntity.holdingObj.x = playerEntity.x + Math.sin(heading) * 2.5;
 playerEntity.holdingObj.z = playerEntity.z + Math.cos(heading) * 2.5;
 }
-// Sync structural spatial layout mesh positions
-interactables.forEach(obj => {
-obj.mesh.position.x = obj.x;
-obj.mesh.position.z = obj.z;
-});
-// 4. Handle Inter-Agent Physics and Intersections
+interactables.forEach(obj => { obj.mesh.position.x = obj.x; obj.mesh.position.z = obj.z; });
 entities.forEach(bot => {
 if(bot.isEliminated) return;
-// Check tag intersection criteria between seeker and player entity
 if(state.phase === 'SEEK') {
 if(bot.team === 'Seeker' && playerEntity.team === 'Hider') {
-let dx = bot.x - playerEntity.x;
-let dz = bot.z - playerEntity.z;
-if(Math.sqrt(dxdx + dzdz) < (bot.radius + playerEntity.radius)) {
-endGame('You were captured by Seeker AI Agents!');
-}
+let dx = bot.x - playerEntity.x, dz = playerEntity.z - playerEntity.z;
+if(Math.sqrt(dxdx + dzdz) < (bot.radius + playerEntity.radius)) endGame('You were captured by Seeker AI Agents!');
 }
 if(bot.team === 'Hider' && playerEntity.team === 'Seeker') {
-let dx = bot.x - playerEntity.x;
-let dz = bot.z - playerEntity.z;
-if(Math.sqrt(dxdx + dzdz) < (bot.radius + playerEntity.radius)) {
-bot.isEliminated = true;
-scene.remove(bot.mesh);
-updateHidersCountDisplay();
+let dx = bot.x - playerEntity.x, dz = playerEntity.z - playerEntity.z;
+if(Math.sqrt(dxdx + dzdz) < (bot.radius + playerEntity.radius)) { bot.isEliminated = true; scene.remove(bot.mesh); updateHidersCountDisplay(); }
 }
-}
-// AI Seeker tags AI Hider
 entities.forEach(other => {
 if(bot.team === 'Seeker' && other.team === 'Hider' && !other.isEliminated) {
-let dx = bot.x - other.x;
-let dz = bot.z - other.z;
-if(Math.sqrt(dxdx + dzdz) < (bot.radius + other.radius)) {
-other.isEliminated = true;
-scene.remove(other.mesh);
-updateHidersCountDisplay();
-}
+let dx = bot.x - other.x, dz = bot.z - other.z;
+if(Math.sqrt(dxdx + dzdz) < (bot.radius + other.radius)) { other.isEliminated = true; scene.remove(other.mesh); updateHidersCountDisplay(); }
 }
 });
 }
 });
-// Sync visual meshes transformations
 playerEntity.mesh.position.set(playerEntity.x, 1, playerEntity.z);
-entities.forEach(bot => {
-if(!bot.isEliminated) bot.mesh.position.set(bot.x, 1, bot.z);
-});
+entities.forEach(bot => { if(!bot.isEliminated) bot.mesh.position.set(bot.x, 1, bot.z); });
 }
 function keepInBounds(ent) {
 const limit = ARENA_SIZE / 2 - ent.radius - 1;
-if(ent.x < -limit) ent.x = -limit;
-if(ent.x > limit) ent.x = limit;
-if(ent.z < -limit) ent.z = -limit;
-if(ent.z > limit) ent.z = limit;
-}
-function renderViewportScene() {
-// Smooth Camera Overhead Orbit Tracking Player Movement Pathing
-camera.position.set(playerEntity.x, 22, playerEntity.z + 16);
-camera.lookAt(playerEntity.x, 0, playerEntity.z - 2);
-renderer.render(scene, camera);
+if(ent.x < -limit) ent.x = -limit; if(ent.x > limit) ent.x = limit;
+if(ent.z < -limit) ent.z = -limit; if(ent.z > limit) ent.z = limit;
 }
