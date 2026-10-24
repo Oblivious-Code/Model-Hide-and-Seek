@@ -109,6 +109,7 @@
             background: #334155;
             color: #94a3b8;
             pointer-events: auto !important;
+            touch-action: manipulation;
         }
         .btn.active {
             background: #0284c7;
@@ -127,6 +128,7 @@
             cursor: pointer !important;
             box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
             pointer-events: auto !important;
+            touch-action: manipulation;
         }
         #start-btn:hover {
             background: #059669;
@@ -181,6 +183,7 @@
             align-items: center;
             border: 2px solid rgba(255,255,255,0.2);
             backdrop-filter: blur(4px);
+            touch-action: none;
         }
         #joystick-nub {
             width: 45px;
@@ -211,6 +214,7 @@
             align-items: center;
             backdrop-filter: blur(4px);
             box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            touch-action: manipulation;
         }
         .action-btn:active {
             background: #0284c7;
@@ -296,338 +300,501 @@
 
     <script>
         const ARENA_SIZE = 50;
-        const PREP_TIME = 20; 
+        const PREP_TIME = 20;
         const SEEK_TIME = 40;
-        
+
         let state = { gameMode: 'AI', playerRole: 'Hider', phase: 'PREP', timeLeft: PREP_TIME, running: false };
         let scene, camera, renderer;
-let playerEntity = { mesh: null, x: -15, z: -15, radius: 0.9, vx: 0, vz: 0, speed: 11, holdingObj: null, team: 'Hider' };
-let entities = [];
-let interactables = [];
-let clockInterval;
-let menuOverlay, startBtn, btnAi, btnOnline, btnHider, btnSeeker;
-let timerDisplay, phaseTitle, roleDisplay, hidersCountDisplay, grabBtn, lockBtn, holdingStatus, matchmakingStatus;
-let keys = {};
-let joystickInput = { x: 0, y: 0 };
-let isJoystickActive = false;
-let joyStart = { x: 0, y: 0 };
-window.onload = function() {
-menuOverlay = document.getElementById('menu-overlay');
-startBtn = document.getElementById('start-btn');
-btnAi = document.getElementById('mode-ai');
-btnOnline = document.getElementById('mode-online');
-btnHider = document.getElementById('role-hider');
-btnSeeker = document.getElementById('role-seeker');
-timerDisplay = document.getElementById('timer-display');
-phaseTitle = document.getElementById('phase-title');
-roleDisplay = document.getElementById('role-display');
-hidersCountDisplay = document.getElementById('hiders-count');
-grabBtn = document.getElementById('grab-btn');
-lockBtn = document.getElementById('lock-btn');
-holdingStatus = document.getElementById('holding-status');
-matchmakingStatus = document.getElementById('matchmaking-status');
-setupMenuHandlers();
-};
-function setupMenuHandlers() {
-const toggleMode = (mode) => {
-state.gameMode = mode;
-if(mode === 'AI') { btnAi.classList.add('active'); btnOnline.classList.remove('active'); }
-else { btnOnline.classList.add('active'); btnAi.classList.remove('active'); }
-};
-const toggleRole = (role) => {
-state.playerRole = role;
-if(role === 'Hider') { btnHider.classList.add('active'); btnSeeker.classList.remove('active'); }
-else { btnSeeker.classList.add('active'); btnHider.classList.remove('active'); }
-};
-btnAi.onclick = (e) => { e.preventDefault(); toggleMode('AI'); };
-btnAi.ontouchstart = (e) => { e.preventDefault(); toggleMode('AI'); };
-btnOnline.onclick = (e) => { e.preventDefault(); toggleMode('Online'); };
-btnOnline.ontouchstart = (e) => { e.preventDefault(); toggleMode('Online'); };
-btnHider.onclick = (e) => { e.preventDefault(); toggleRole('Hider'); };
-btnHider.ontouchstart = (e) => { e.preventDefault(); toggleRole('Hider'); };
-btnSeeker.onclick = (e) => { e.preventDefault(); toggleRole('Seeker'); };
-btnSeeker.ontouchstart = (e) => { e.preventDefault(); toggleRole('Seeker'); };
-const beginGame = (e) => {
-e.preventDefault();
-menuOverlay.style.display = 'none';
-initGame();
-};
-startBtn.onclick = beginGame;
-startBtn.ontouchstart = beginGame;
-}
-function initGame() {
-state.running = true;
-state.phase = 'PREP';
-state.timeLeft = PREP_TIME;
-playerEntity.team = state.playerRole;
-roleDisplay.textContent = playerEntity.team;
-roleDisplay.className = playerEntity.team === 'Hider' ? 'team-hider' : 'team-seeker';
-matchmakingStatus.textContent = state.gameMode === 'Online' ? "Connected to Online Sandbox" : "Local Agent Simulation";
-setupThreeJS();
-buildEnvironment();
-spawnEntities();
-setupInputListeners();
-clearInterval(clockInterval);
-clockInterval = setInterval(updateClock, 1000);
-animate();
-}
-function setupThreeJS() {
-const container = document.getElementById('canvas-container');
-container.innerHTML = '';
-scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0f172a);
-scene.fog = new THREE.FogExp2(0x0f172a, 0.015);
-camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-container.appendChild(renderer.domElement);
-scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
-sunLight.position.set(30, 40, 20);
-sunLight.castShadow = true;
-scene.add(sunLight);
-}
-function buildEnvironment() {
-const floorGeo = new THREE.PlaneGeometry(ARENA_SIZE, ARENA_SIZE);
-const floorMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
-const floor = new THREE.Mesh(floorGeo, floorMat);
-floor.rotation.x = -Math.PI / 2;
-floor.receiveShadow = true;
-scene.add(floor);
-const grid = new THREE.GridHelper(ARENA_SIZE, ARENA_SIZE, 0x334155, 0x1e293b);
-grid.position.y = 0.01;
-scene.add(grid);
-const wallMat = new THREE.MeshStandardMaterial({ color: 0x334155 });
-const thickness = 2, height = 4;
-const wallsData = [
-{ w: ARENA_SIZE, h: height, d: thickness, x: 0, z: -ARENA_SIZE/2 },
-{ w: ARENA_SIZE, h: height, d: thickness, x: 0, z: ARENA_SIZE/2 },
-{ w: thickness, h: height, d: ARENA_SIZE, x: -ARENA_SIZE/2, z: 0 },
-{ w: thickness, h: height, d: ARENA_SIZE, x: ARENA_SIZE/2, z: 0 }
-];
-wallsData.forEach(data => {
-const mesh = new THREE.Mesh(new THREE.BoxGeometry(data.w, data.h, data.d), wallMat);
-mesh.position.set(data.x, height/2, data.z);
-scene.add(mesh);
-});
-interactables = [];
-const pillarGeo = new THREE.BoxGeometry(4, 4, 4);
-const pillarMat = new THREE.MeshStandardMaterial({ color: 0x475569 });
-[{x: -10, z: 5}, {x: 10, z: -5}, {x: -5, z: 12}, {x: 8, z: 10}].forEach(pos => {
-const mesh = new THREE.Mesh(pillarGeo, pillarMat);
-mesh.position.set(pos.x, 2, pos.z);
-scene.add(mesh);
-});
-for(let i=0; i<8; i++) createMoveableBlock((Math.random() - 0.5) * 25, (Math.random() - 0.5) * 25, 'cube');
-for(let i=0; i<3; i++) createMoveableBlock((Math.random() - 0.5) * 30, (Math.random() - 0.5) * 30, 'ramp');
-}
-function createMoveableBlock(x, z, type) {
-let geo, mat;
-if(type === 'cube') {
-geo = new THREE.BoxGeometry(3, 2, 3);
-mat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.4 });
-} else {
-geo = new THREE.BufferGeometry();
-const vertices = new Float32Array([
--2, 0,  2,   2, 0,  2,   -2, 2,  2,   2, 0,  2,   2, 2, -2,   -2, 2,  2,
--2, 0, -2,  -2, 0,  2,   -2, 2,  2,   2, 0,  2,   2, 0, -2,   2, 2, -2,
--2, 0, -2,   2, 0, -2,   2, 2, -2,  -2, 0, -2,  -2, 2,  2,   2, 2, -2,
--2, 0, -2,   2, 0, -2,   2, 0,  2,   2, 0,  2,  -2, 0,  2,  -2, 0, -2
-]);
-geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-geo.computeVertexNormals();
-mat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4 });
-}
-const mesh = new THREE.Mesh(geo, mat);
-mesh.position.set(x, type==='cube'? 1 : 0, z);
-scene.add(mesh);
-interactables.push({
-mesh: mesh, type: type, x: x, z: z, radius: 1.5, isLocked: false,
-lockedColor: 0xef4444, baseColor: type === 'cube' ? 0x64748b : 0xf59e0b
-});
-}
-function spawnEntities() {
-entities = [];
-const playerColor = playerEntity.team === 'Hider' ? 0x0ea5e9 : 0xef4444;
-playerEntity.mesh = createAgentVisual(playerColor, playerEntity.team === 'Seeker');
-playerEntity.x = playerEntity.team === 'Seeker' ? 18 : -16;
-playerEntity.z = playerEntity.team === 'Seeker' ? 18 : -12;
-scene.add(playerEntity.mesh);
-const botConfigs = [
-{ team: 'Hider', x: -12, z: -18, color: 0x38bdf8 },
-{ team: 'Hider', x: -18, z: -6,  color: 0x38bdf8 },
-{ team: 'Seeker', x: 18, z: 12,  color: 0xf87171 }
-];
-botConfigs.forEach((cfg, index) => {
-if(cfg.team === playerEntity.team && index === 0) return;
-let botMesh = createAgentVisual(cfg.color, cfg.team === 'Seeker');
-scene.add(botMesh);
-entities.push({
-mesh: botMesh, x: cfg.x, z: cfg.z, radius: 0.9, vx: 0, vz: 0,
-speed: cfg.team === 'Seeker' ? 11.5 : 10.5, team: cfg.team,
-targetX: cfg.x, targetZ: cfg.z, decisionTimer: 0, isEliminated: false
-});
-});
-updateHidersCountDisplay();
-}
-function createAgentVisual(colorHex, isSeeker) {
-const group = new THREE.Group();
-const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.6, 0.8, 4, 8), new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.3 }));
-body.position.y = 0.5;
-group.add(body);
-const visor = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.2, 0.4), new THREE.MeshBasicMaterial({ color: isSeeker ? 0xffffff : 0x000000 }));
-visor.position.set(0, 1.1, 0.45);
-group.add(visor);
-return group;
-}
-function setupInputListeners() {
-window.onkeydown = (e) => {
-keys[e.key.toLowerCase()] = true;
-if(e.key === ' ') { handleGrabToggle(); e.preventDefault(); }
-if(e.key.toLowerCase() === 'l') { handleLockToggle(); }
-};
-window.onkeyup = (e) => { keys[e.key.toLowerCase()] = false; };
-const runGrab = (e) => { e.preventDefault(); handleGrabToggle(); };
-const runLock = (e) => { e.preventDefault(); handleLockToggle(); };
-grabBtn.onclick = runGrab; grabBtn.ontouchstart = runGrab;
-lockBtn.onclick = runLock; lockBtn.ontouchstart = runLock;
-setupJoystick();
-window.onresize = () => {
-camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
-renderer.setSize(window.innerWidth, window.innerHeight);
-};
-}
-function setupJoystick() {
-const zone = document.getElementById('joystick-zone');
-const nub = document.getElementById('joystick-nub');
-zone.addEventListener('touchstart', (e) => {
-isJoystickActive = true; const rect = zone.getBoundingClientRect();
-joyStart.x = rect.left + rect.width/2; joyStart.y = rect.top + rect.height/2;
-let t = e.touches[0];
-let dx = t.clientX - joyStart.x, dy = t.clientY - joyStart.y;
-nub.style.transform = translate(${Math.min(30, dx)}px, ${Math.min(30, dy)}px);
-e.preventDefault();
-});
-window.addEventListener('touchmove', (e) => {
-if(!isJoystickActive) return;
-let t = e.touches[0];
-let dx = t.clientX - joyStart.x, dy = t.clientY - joyStart.y;
-let dist = Math.sqrt(dxdx + dydy);
-if(dist > 40) { dx = (dx/dist)*40; dy = (dy/dist)*40; }
-nub.style.transform = translate(${dx}px, ${dy}px);
-joystickInput.x = dx / 40; joystickInput.y = dy / 40;
-}, { passive: false });
-window.addEventListener('touchend', () => {
-isJoystickActive = false; nub.style.transform = 'translate(0px,0px)';
-joystickInput.x = 0; joystickInput.y = 0;
-});
-}
-function handleGrabToggle() {
-if(playerEntity.holdingObj) { playerEntity.holdingObj = null; holdingStatus.textContent = "Hands Free"; grabBtn.textContent = "GRAB"; }
-else {
-if(state.phase === 'SEEK' && playerEntity.team === 'Seeker') return;
-let closest = null, minDist = 4;
-interactables.forEach(obj => {
-if(obj.isLocked) return;
-let d = Math.sqrt((obj.x-playerEntity.x)**2 + (obj.z-playerEntity.z)**2);
-if(d < minDist) { minDist = d; closest = obj; }
-});
-if(closest) { playerEntity.holdingObj = closest; holdingStatus.textContent = "Carrying Object"; grabBtn.textContent = "RELEASE"; }
-}
-}
-function handleLockToggle() {
-let closest = playerEntity.holdingObj;
-if(!closest) {
-let minDist = 5;
-interactables.forEach(obj => {
-let d = Math.sqrt((obj.x-playerEntity.x)**2 + (obj.z-playerEntity.z)**2);
-if(d < minDist) { minDist = d; closest = obj; }
-});
-}
-if(closest) {
-closest.isLocked = !closest.isLocked;
-if(closest.isLocked) {
-closest.mesh.material.color.setHex(closest.lockedColor);
-if(playerEntity.holdingObj === closest) { playerEntity.holdingObj = null; holdingStatus.textContent = "Hands Free"; grabBtn.textContent = "GRAB"; }
-lockBtn.classList.add('locked-state');
-} else {
-closest.mesh.material.color.setHex(closest.baseColor); lockBtn.classList.remove('locked-state');
-}
-}
-}
-function updateClock() {
-if(!state.running) return;
-state.timeLeft--;
-if(state.timeLeft <= 0) {
-if(state.phase === 'PREP') { state.phase = 'SEEK'; state.timeLeft = SEEK_TIME; phaseTitle.textContent = "Active Search Chase"; phaseTitle.style.color = "#ef4444"; }
-else { endGame('Hiders Survived! Victory.'); return; }
-}
-timerDisplay.textContent = state.timeLeft;
-}
-function updateHidersCountDisplay() {
-let count = playerEntity.team === 'Hider' ? 1 : 0;
-entities.forEach(e => { if(e.team === 'Hider' && !e.isEliminated) count++; });
-hidersCountDisplay.textContent = count;
-if(count === 0) endGame('All Hiders Caught! Seeker Victory.');
-}
-function endGame(msg) { state.running = false; clearInterval(clockInterval); alert(msg); window.location.reload(); }
-function animate() {
-if(!state.running) return;
-requestAnimationFrame(animate);
-let mx = 0, mz = 0;
-if(keys['w'] || keys['arrowup']) mz = -1; if(keys['s'] || keys['arrowdown']) mz = 1;
-if(keys['a'] || keys['arrowleft']) mx = -1; if(keys['d'] || keys['arrowright']) mx = 1;
-if(isJoystickActive) { mx = joystickInput.x; mz = joystickInput.y; }
-let len = Math.sqrt(mxmx + mzmz);
-if(len > 0) {
-mx /= len; mz /= len;
-if(!(state.phase === 'PREP' && playerEntity.team === 'Seeker')) {
-playerEntity.x += mx * playerEntity.speed * 0.016; playerEntity.z += mz * playerEntity.speed * 0.016;
-playerEntity.mesh.rotation.y = Math.atan2(mx, mz);
-}
-}
-entities.forEach(bot => {
-if(bot.isEliminated) return;
-if(state.phase === 'PREP' && bot.team === 'Seeker') return;
-bot.decisionTimer -= 0.016;
-if(bot.decisionTimer <= 0) {
-bot.decisionTimer = Math.random() * 2 + 1;
-if(bot.team === 'Seeker') {
-let target = (playerEntity.team==='Hider')? playerEntity : null;
-entities.forEach(h => { if(h.team==='Hider' && !h.isEliminated) target = h; });
-if(target) { bot.targetX = target.x; bot.targetZ = target.z; }
-} else {
-bot.targetX = bot.x + (Math.random()-0.5)15; bot.targetZ = bot.z + (Math.random()-0.5)15;
-}
-}
-let dx = bot.targetX - bot.x, dz = bot.targetZ - bot.z;
-let dist = Math.sqrt(dxdx + dzdz);
-if(dist > 0.5) { bot.x += (dx/dist)bot.speed0.016; bot.z += (dz/dist)bot.speed0.016; bot.mesh.rotation.y = Math.atan2(dx,dz); }
-});
-const bound = ARENA_SIZE/2 - 1.5;
-const clamp = (ent) => { ent.x = Math.max(-bound, Math.min(bound, ent.x)); ent.z = Math.max(-bound, Math.min(bound, ent.z)); };
-clamp(playerEntity); entities.forEach(clamp);
-if(playerEntity.holdingObj) {
-let h = playerEntity.mesh.rotation.y;
-playerEntity.holdingObj.x = playerEntity.x + Math.sin(h)*2.2; playerEntity.holdingObj.z = playerEntity.z + Math.cos(h)*2.2;
-}
-interactables.forEach(o => { o.mesh.position.set(o.x, o.type==='cube'?1:0, o.z); });
-if(state.phase === 'SEEK') {
-entities.forEach(bot => {
-if(bot.isEliminated) return;
-if(bot.team === 'Seeker' && playerEntity.team === 'Hider') {
-if(Math.sqrt((bot.x-playerEntity.x)**2 + (bot.z-playerEntity.z)**2) < 1.5) endGame('Caught by Seeker!');
-}
-if(bot.team === 'Hider' && playerEntity.team === 'Seeker') {
-if(Math.sqrt((bot.x-playerEntity.x)**2 + (bot.z-playerEntity.z)**2) < 1.5) { bot.isEliminated = true; scene.remove(bot.mesh); updateHidersCountDisplay(); }
-}
-});
-}
-playerEntity.mesh.position.set(playerEntity.x, 1, playerEntity.z);
-entities.forEach(b => { if(!b.isEliminated) b.mesh.position.set(b.x, 1, b.z); });
-camera.position.set(playerEntity.x, 22, playerEntity.z + 16);
-camera.lookAt(playerEntity.x, 0, playerEntity.z - 2);
-renderer.render(scene, camera);
-}
+        let playerEntity = { mesh: null, x: -15, z: -15, radius: 0.9, vx: 0, vz: 0, speed: 11, holdingObj: null, team: 'Hider' };
+        let entities = [];
+        let interactables = [];
+        let clockInterval;
+        let menuOverlay, startBtn, btnAi, btnOnline, btnHider, btnSeeker;
+        let timerDisplay, phaseTitle, roleDisplay, hidersCountDisplay, grabBtn, lockBtn, holdingStatus, matchmakingStatus;
+        let keys = {};
+        let joystickInput = { x: 0, y: 0 };
+        let isJoystickActive = false;
+        let joyStart = { x: 0, y: 0 };
+
+        window.onload = function() {
+            menuOverlay = document.getElementById('menu-overlay');
+            startBtn = document.getElementById('start-btn');
+            btnAi = document.getElementById('mode-ai');
+            btnOnline = document.getElementById('mode-online');
+            btnHider = document.getElementById('role-hider');
+            btnSeeker = document.getElementById('role-seeker');
+            timerDisplay = document.getElementById('timer-display');
+            phaseTitle = document.getElementById('phase-title');
+            roleDisplay = document.getElementById('role-display');
+            hidersCountDisplay = document.getElementById('hiders-count');
+            grabBtn = document.getElementById('grab-btn');
+            lockBtn = document.getElementById('lock-btn');
+            holdingStatus = document.getElementById('holding-status');
+            matchmakingStatus = document.getElementById('matchmaking-status');
+            setupMenuHandlers();
+        };
+
+        function setupMenuHandlers() {
+            const toggleMode = (mode) => {
+                state.gameMode = mode;
+                if (mode === 'AI') {
+                    btnAi.classList.add('active');
+                    btnOnline.classList.remove('active');
+                } else {
+                    btnOnline.classList.add('active');
+                    btnAi.classList.remove('active');
+                }
+            };
+
+            const toggleRole = (role) => {
+                state.playerRole = role;
+                if (role === 'Hider') {
+                    btnHider.classList.add('active');
+                    btnSeeker.classList.remove('active');
+                } else {
+                    btnSeeker.classList.add('active');
+                    btnHider.classList.remove('active');
+                }
+            };
+
+            btnAi.onclick = (e) => { e.preventDefault(); toggleMode('AI'); };
+            btnAi.ontouchstart = (e) => { e.preventDefault(); toggleMode('AI'); };
+            btnOnline.onclick = (e) => { e.preventDefault(); toggleMode('Online'); };
+            btnOnline.ontouchstart = (e) => { e.preventDefault(); toggleMode('Online'); };
+            btnHider.onclick = (e) => { e.preventDefault(); toggleRole('Hider'); };
+            btnHider.ontouchstart = (e) => { e.preventDefault(); toggleRole('Hider'); };
+            btnSeeker.onclick = (e) => { e.preventDefault(); toggleRole('Seeker'); };
+            btnSeeker.ontouchstart = (e) => { e.preventDefault(); toggleRole('Seeker'); };
+
+            const beginGame = (e) => {
+                if (e) e.preventDefault();
+                menuOverlay.style.display = 'none';
+                initGame();
+            };
+
+            startBtn.onclick = beginGame;
+            startBtn.ontouchstart = beginGame;
+        }
+
+        function initGame() {
+            state.running = true;
+            state.phase = 'PREP';
+            state.timeLeft = PREP_TIME;
+            playerEntity.team = state.playerRole;
+            roleDisplay.textContent = playerEntity.team;
+            roleDisplay.className = playerEntity.team === 'Hider' ? 'team-hider' : 'team-seeker';
+            matchmakingStatus.textContent = state.gameMode === 'Online' ? 'Connected to Online Sandbox' : 'Local Agent Simulation';
+            setupThreeJS();
+            buildEnvironment();
+            spawnEntities();
+            setupInputListeners();
+            clearInterval(clockInterval);
+            clockInterval = setInterval(updateClock, 1000);
+            animate();
+        }
+
+        function setupThreeJS() {
+            const container = document.getElementById('canvas-container');
+            container.innerHTML = '';
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0f172a);
+            scene.fog = new THREE.FogExp2(0x0f172a, 0.015);
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+            scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+            const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            sunLight.position.set(30, 40, 20);
+            sunLight.castShadow = true;
+            scene.add(sunLight);
+        }
+
+        function buildEnvironment() {
+            const floorGeo = new THREE.PlaneGeometry(ARENA_SIZE, ARENA_SIZE);
+            const floorMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+
+            const grid = new THREE.GridHelper(ARENA_SIZE, ARENA_SIZE, 0x334155, 0x1e293b);
+            grid.position.y = 0.01;
+            scene.add(grid);
+
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0x334155 });
+            const thickness = 2, height = 4;
+            const wallsData = [
+                { w: ARENA_SIZE, h: height, d: thickness, x: 0, z: -ARENA_SIZE / 2 },
+                { w: ARENA_SIZE, h: height, d: thickness, x: 0, z: ARENA_SIZE / 2 },
+                { w: thickness, h: height, d: ARENA_SIZE, x: -ARENA_SIZE / 2, z: 0 },
+                { w: thickness, h: height, d: ARENA_SIZE, x: ARENA_SIZE / 2, z: 0 }
+            ];
+
+            wallsData.forEach(data => {
+                const mesh = new THREE.Mesh(new THREE.BoxGeometry(data.w, data.h, data.d), wallMat);
+                mesh.position.set(data.x, height / 2, data.z);
+                scene.add(mesh);
+            });
+
+            interactables = [];
+            const pillarGeo = new THREE.BoxGeometry(4, 4, 4);
+            const pillarMat = new THREE.MeshStandardMaterial({ color: 0x475569 });
+            [{x: -10, z: 5}, {x: 10, z: -5}, {x: -5, z: 12}, {x: 8, z: 10}].forEach(pos => {
+                const mesh = new THREE.Mesh(pillarGeo, pillarMat);
+                mesh.position.set(pos.x, 2, pos.z);
+                scene.add(mesh);
+            });
+
+            for (let i = 0; i < 8; i++) createMoveableBlock((Math.random() - 0.5) * 25, (Math.random() - 0.5) * 25, 'cube');
+            for (let i = 0; i < 3; i++) createMoveableBlock((Math.random() - 0.5) * 30, (Math.random() - 0.5) * 30, 'ramp');
+        }
+
+        function createMoveableBlock(x, z, type) {
+            let geo, mat;
+            if (type === 'cube') {
+                geo = new THREE.BoxGeometry(3, 2, 3);
+                mat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.4 });
+            } else {
+                geo = new THREE.BufferGeometry();
+                const vertices = new Float32Array([
+                    -2, 0,  2,   2, 0,  2,   -2, 2,  2,   2, 0,  2,   2, 2, -2,   -2, 2,  2,
+                    -2, 0, -2,  -2, 0,  2,   -2, 2,  2,   2, 0,  2,   2, 0, -2,   2, 2, -2,
+                    -2, 0, -2,   2, 0, -2,   2, 2, -2,  -2, 0, -2,  -2, 2,  2,   2, 2, -2,
+                    -2, 0, -2,   2, 0, -2,   2, 0,  2,   2, 0,  2,  -2, 0,  2,  -2, 0, -2
+                ]);
+                geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+                geo.computeVertexNormals();
+                mat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4 });
+            }
+
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x, type === 'cube' ? 1 : 0, z);
+            scene.add(mesh);
+            interactables.push({
+                mesh: mesh,
+                type: type,
+                x: x,
+                z: z,
+                radius: 1.5,
+                isLocked: false,
+                lockedColor: 0xef4444,
+                baseColor: type === 'cube' ? 0x64748b : 0xf59e0b
+            });
+        }
+
+        function spawnEntities() {
+            entities = [];
+            const playerColor = playerEntity.team === 'Hider' ? 0x0ea5e9 : 0xef4444;
+            playerEntity.mesh = createAgentVisual(playerColor, playerEntity.team === 'Seeker');
+            playerEntity.x = playerEntity.team === 'Seeker' ? 18 : -16;
+            playerEntity.z = playerEntity.team === 'Seeker' ? 18 : -12;
+            scene.add(playerEntity.mesh);
+
+            const botConfigs = [
+                { team: 'Hider', x: -12, z: -18, color: 0x38bdf8 },
+                { team: 'Hider', x: -18, z: -6, color: 0x38bdf8 },
+                { team: 'Seeker', x: 18, z: 12, color: 0xf87171 }
+            ];
+
+            botConfigs.forEach((cfg, index) => {
+                if (cfg.team === playerEntity.team && index === 0) return;
+                const botMesh = createAgentVisual(cfg.color, cfg.team === 'Seeker');
+                scene.add(botMesh);
+                entities.push({
+                    mesh: botMesh,
+                    x: cfg.x,
+                    z: cfg.z,
+                    radius: 0.9,
+                    vx: 0,
+                    vz: 0,
+                    speed: cfg.team === 'Seeker' ? 11.5 : 10.5,
+                    team: cfg.team,
+                    targetX: cfg.x,
+                    targetZ: cfg.z,
+                    decisionTimer: 0,
+                    isEliminated: false
+                });
+            });
+            updateHidersCountDisplay();
+        }
+
+        function createAgentVisual(colorHex, isSeeker) {
+            const group = new THREE.Group();
+            const body = new THREE.Mesh(
+                new THREE.CapsuleGeometry(0.6, 0.8, 4, 8),
+                new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.3 })
+            );
+            body.position.y = 0.5;
+            group.add(body);
+
+            const visor = new THREE.Mesh(
+                new THREE.BoxGeometry(0.7, 0.2, 0.4),
+                new THREE.MeshBasicMaterial({ color: isSeeker ? 0xffffff : 0x000000 })
+            );
+            visor.position.set(0, 1.1, 0.45);
+            group.add(visor);
+            return group;
+        }
+
+        function setupInputListeners() {
+            window.onkeydown = (e) => {
+                keys[e.key.toLowerCase()] = true;
+                if (e.key === ' ') {
+                    handleGrabToggle();
+                    e.preventDefault();
+                }
+                if (e.key.toLowerCase() === 'l') {
+                    handleLockToggle();
+                }
+            };
+            window.onkeyup = (e) => { keys[e.key.toLowerCase()] = false; };
+
+            const runGrab = (e) => { e.preventDefault(); handleGrabToggle(); };
+            const runLock = (e) => { e.preventDefault(); handleLockToggle(); };
+
+            grabBtn.onclick = runGrab;
+            grabBtn.ontouchstart = runGrab;
+            lockBtn.onclick = runLock;
+            lockBtn.ontouchstart = runLock;
+
+            setupJoystick();
+            window.onresize = () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            };
+        }
+
+        function setupJoystick() {
+            const zone = document.getElementById('joystick-zone');
+            const nub = document.getElementById('joystick-nub');
+
+            zone.addEventListener('touchstart', (e) => {
+                isJoystickActive = true;
+                const rect = zone.getBoundingClientRect();
+                joyStart.x = rect.left + rect.width / 2;
+                joyStart.y = rect.top + rect.height / 2;
+                const t = e.touches[0];
+                let dx = t.clientX - joyStart.x;
+                let dy = t.clientY - joyStart.y;
+                nub.style.transform = `translate(${Math.min(30, dx)}px, ${Math.min(30, dy)}px)`;
+                e.preventDefault();
+            });
+
+            window.addEventListener('touchmove', (e) => {
+                if (!isJoystickActive) return;
+                const t = e.touches[0];
+                let dx = t.clientX - joyStart.x;
+                let dy = t.clientY - joyStart.y;
+                let dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist > 40) {
+                    dx = (dx / dist) * 40;
+                    dy = (dy / dist) * 40;
+                }
+                nub.style.transform = `translate(${dx}px, ${dy}px)`;
+                joystickInput.x = dx / 40;
+                joystickInput.y = dy / 40;
+            }, { passive: false });
+
+            window.addEventListener('touchend', () => {
+                isJoystickActive = false;
+                nub.style.transform = 'translate(0px,0px)';
+                joystickInput.x = 0;
+                joystickInput.y = 0;
+            });
+        }
+
+        function handleGrabToggle() {
+            if (playerEntity.holdingObj) {
+                playerEntity.holdingObj = null;
+                holdingStatus.textContent = 'Hands Free';
+                grabBtn.textContent = 'GRAB';
+            } else {
+                if (state.phase === 'SEEK' && playerEntity.team === 'Seeker') return;
+
+                let closest = null;
+                let minDist = 4;
+                interactables.forEach(obj => {
+                    if (obj.isLocked) return;
+                    let d = Math.sqrt((obj.x - playerEntity.x) ** 2 + (obj.z - playerEntity.z) ** 2);
+                    if (d < minDist) {
+                        minDist = d;
+                        closest = obj;
+                    }
+                });
+
+                if (closest) {
+                    playerEntity.holdingObj = closest;
+                    holdingStatus.textContent = 'Carrying Object';
+                    grabBtn.textContent = 'RELEASE';
+                }
+            }
+        }
+
+        function handleLockToggle() {
+            let closest = playerEntity.holdingObj;
+            if (!closest) {
+                let minDist = 5;
+                interactables.forEach(obj => {
+                    let d = Math.sqrt((obj.x - playerEntity.x) ** 2 + (obj.z - playerEntity.z) ** 2);
+                    if (d < minDist) {
+                        minDist = d;
+                        closest = obj;
+                    }
+                });
+            }
+
+            if (closest) {
+                closest.isLocked = !closest.isLocked;
+                if (closest.isLocked) {
+                    closest.mesh.material.color.setHex(closest.lockedColor);
+                    if (playerEntity.holdingObj === closest) {
+                        playerEntity.holdingObj = null;
+                        holdingStatus.textContent = 'Hands Free';
+                        grabBtn.textContent = 'GRAB';
+                    }
+                    lockBtn.classList.add('locked-state');
+                } else {
+                    closest.mesh.material.color.setHex(closest.baseColor);
+                    lockBtn.classList.remove('locked-state');
+                }
+            }
+        }
+
+        function updateClock() {
+            if (!state.running) return;
+            state.timeLeft--;
+            if (state.timeLeft <= 0) {
+                if (state.phase === 'PREP') {
+                    state.phase = 'SEEK';
+                    state.timeLeft = SEEK_TIME;
+                    phaseTitle.textContent = 'Active Search Chase';
+                    phaseTitle.style.color = '#ef4444';
+                } else {
+                    endGame('Hiders Survived! Victory.');
+                    return;
+                }
+            }
+            timerDisplay.textContent = state.timeLeft;
+        }
+
+        function updateHidersCountDisplay() {
+            let count = playerEntity.team === 'Hider' ? 1 : 0;
+            entities.forEach(e => { if (e.team === 'Hider' && !e.isEliminated) count++; });
+            hidersCountDisplay.textContent = count;
+            if (count === 0) endGame('All Hiders Caught! Seeker Victory.');
+        }
+
+        function endGame(msg) {
+            state.running = false;
+            clearInterval(clockInterval);
+            alert(msg);
+            window.location.reload();
+        }
+
+        function animate() {
+            if (!state.running) return;
+            requestAnimationFrame(animate);
+
+            let mx = 0, mz = 0;
+            if (keys['w'] || keys['arrowup']) mz = -1;
+            if (keys['s'] || keys['arrowdown']) mz = 1;
+            if (keys['a'] || keys['arrowleft']) mx = -1;
+            if (keys['d'] || keys['arrowright']) mx = 1;
+            if (isJoystickActive) {
+                mx = joystickInput.x;
+                mz = joystickInput.y;
+            }
+
+            let len = Math.sqrt(mx * mx + mz * mz);
+            if (len > 0) {
+                mx /= len;
+                mz /= len;
+                if (!(state.phase === 'PREP' && playerEntity.team === 'Seeker')) {
+                    playerEntity.x += mx * playerEntity.speed * 0.016;
+                    playerEntity.z += mz * playerEntity.speed * 0.016;
+                    playerEntity.mesh.rotation.y = Math.atan2(mx, mz);
+                }
+            }
+
+            entities.forEach(bot => {
+                if (bot.isEliminated) return;
+                if (state.phase === 'PREP' && bot.team === 'Seeker') return;
+
+                bot.decisionTimer -= 0.016;
+                if (bot.decisionTimer <= 0) {
+                    bot.decisionTimer = Math.random() * 2 + 1;
+                    if (bot.team === 'Seeker') {
+                        let target = playerEntity.team === 'Hider' ? playerEntity : null;
+                        entities.forEach(h => {
+                            if (h.team === 'Hider' && !h.isEliminated) target = h;
+                        });
+                        if (target) {
+                            bot.targetX = target.x;
+                            bot.targetZ = target.z;
+                        }
+                    } else {
+                        bot.targetX = bot.x + (Math.random() - 0.5) * 15;
+                        bot.targetZ = bot.z + (Math.random() - 0.5) * 15;
+                    }
+                }
+
+                let dx = bot.targetX - bot.x;
+                let dz = bot.targetZ - bot.z;
+                let dist = Math.sqrt(dx * dx + dz * dz);
+                if (dist > 0.5) {
+                    bot.x += (dx / dist) * bot.speed * 0.016;
+                    bot.z += (dz / dist) * bot.speed * 0.016;
+                    bot.mesh.rotation.y = Math.atan2(dx, dz);
+                }
+            });
+
+            const bound = ARENA_SIZE / 2 - 1.5;
+            const clamp = (ent) => {
+                ent.x = Math.max(-bound, Math.min(bound, ent.x));
+                ent.z = Math.max(-bound, Math.min(bound, ent.z));
+            };
+            clamp(playerEntity);
+            entities.forEach(clamp);
+
+            if (playerEntity.holdingObj) {
+                let h = playerEntity.mesh.rotation.y;
+                playerEntity.holdingObj.x = playerEntity.x + Math.sin(h) * 2.2;
+                playerEntity.holdingObj.z = playerEntity.z + Math.cos(h) * 2.2;
+            }
+
+            interactables.forEach(o => {
+                o.mesh.position.set(o.x, o.type === 'cube' ? 1 : 0, o.z);
+            });
+
+            if (state.phase === 'SEEK') {
+                entities.forEach(bot => {
+                    if (bot.isEliminated) return;
+                    if (bot.team === 'Seeker' && playerEntity.team === 'Hider') {
+                        if (Math.sqrt((bot.x - playerEntity.x) ** 2 + (bot.z - playerEntity.z) ** 2) < 1.5) endGame('Caught by Seeker!');
+                    }
+                    if (bot.team === 'Hider' && playerEntity.team === 'Seeker') {
+                        if (Math.sqrt((bot.x - playerEntity.x) ** 2 + (bot.z - playerEntity.z) ** 2) < 1.5) {
+                            bot.isEliminated = true;
+                            scene.remove(bot.mesh);
+                            updateHidersCountDisplay();
+                        }
+                    }
+                });
+            }
+
+            playerEntity.mesh.position.set(playerEntity.x, 1, playerEntity.z);
+            entities.forEach(b => {
+                if (!b.isEliminated) b.mesh.position.set(b.x, 1, b.z);
+            });
+
+            camera.position.set(playerEntity.x, 22, playerEntity.z + 16);
+            camera.lookAt(playerEntity.x, 0, playerEntity.z - 2);
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
