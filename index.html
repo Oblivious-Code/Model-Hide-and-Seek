@@ -239,7 +239,7 @@
         }
         @media (pointer: fine) { #desktop-instructions { display: block; } }
     </style>
-    <script src="https://cloudflare.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 </head>
 <body>
 
@@ -316,7 +316,7 @@
         let isJoystickActive = false;
         let joyStart = { x: 0, y: 0 };
 
-        window.onload = function() {
+        function initializePage() {
             menuOverlay = document.getElementById('menu-overlay');
             startBtn = document.getElementById('start-btn');
             btnAi = document.getElementById('mode-ai');
@@ -332,9 +332,14 @@
             holdingStatus = document.getElementById('holding-status');
             matchmakingStatus = document.getElementById('matchmaking-status');
             setupMenuHandlers();
-        };
+        }
+
+        window.addEventListener('DOMContentLoaded', initializePage);
+        window.addEventListener('load', initializePage);
 
         function setupMenuHandlers() {
+            if (!btnAi || !btnOnline || !btnHider || !btnSeeker || !startBtn) return;
+
             const toggleMode = (mode) => {
                 state.gameMode = mode;
                 if (mode === 'AI') {
@@ -368,7 +373,7 @@
 
             const beginGame = (e) => {
                 if (e) e.preventDefault();
-                menuOverlay.style.display = 'none';
+                if (menuOverlay) menuOverlay.style.display = 'none';
                 initGame();
             };
 
@@ -377,6 +382,12 @@
         }
 
         function initGame() {
+            if (typeof THREE === 'undefined') {
+                console.error('Three.js is not loaded.');
+                alert('Three.js failed to load. Please reload the page.');
+                return;
+            }
+
             state.running = true;
             state.phase = 'PREP';
             state.timeLeft = PREP_TIME;
