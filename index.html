@@ -44,7 +44,6 @@
             pointer-events: auto !important;
             cursor: pointer !important;
         }
-        /* Menu Overlay Placement */
         #menu-overlay {
             position: absolute;
             top: 0;
@@ -132,7 +131,6 @@
         #start-btn:hover {
             background: #059669;
         }
-        /* HUD Layout Configuration */
         #top-hud {
             width: 100%;
             display: flex;
@@ -164,7 +162,6 @@
         .team-hider { color: #38bdf8; }
         .team-seeker { color: #f87171; }
         
-        /* Mobile Direct Overlays Controls */
         #controls-layer {
             width: 100%;
             display: flex;
@@ -238,14 +235,12 @@
         }
         @media (pointer: fine) { #desktop-instructions { display: block; } }
     </style>
-    <!-- Three.js Library Canvas Driver -->
     <script src="https://cloudflare.com"></script>
 </head>
 <body>
 
     <div id="canvas-container"></div>
 
-    <!-- UI Overlay Layer -->
     <div id="ui-layer">
         <div id="top-hud">
             <div class="hud-panel" id="score-box">
@@ -277,7 +272,7 @@
         </div>
     </div>
 
-    <!-- Menu Overlay Initial State -->
+    <!-- Menu Overlay (IDs mapped explicitly onto button components) -->
     <div id="menu-overlay">
         <h1>Multi-Agent Hide & Seek</h1>
         <p class="subtitle">Inspired by OpenAI's emergent simulation. Use tools, lock doors, or place golden ramps to bypass defenses.</p>
@@ -300,26 +295,23 @@
     </div>
 
     <script>
-        // --- Game Simulation Parameters ---
         const ARENA_SIZE = 50;
         const PREP_TIME = 20; 
-const SEEK_TIME = 40;
-let state = { gameMode: 'AI', playerRole: 'Hider', phase: 'PREP', timeLeft: PREP_TIME, running: false };
-let scene, camera, renderer;
+        const SEEK_TIME = 40;
+        
+        let state = { gameMode: 'AI', playerRole: 'Hider', phase: 'PREP', timeLeft: PREP_TIME, running: false };
+        let scene, camera, renderer;
 let playerEntity = { mesh: null, x: -15, z: -15, radius: 0.9, vx: 0, vz: 0, speed: 11, holdingObj: null, team: 'Hider' };
 let entities = [];
 let interactables = [];
 let clockInterval;
-// UI DOM Reference Variables
 let menuOverlay, startBtn, btnAi, btnOnline, btnHider, btnSeeker;
 let timerDisplay, phaseTitle, roleDisplay, hidersCountDisplay, grabBtn, lockBtn, holdingStatus, matchmakingStatus;
 let keys = {};
 let joystickInput = { x: 0, y: 0 };
 let isJoystickActive = false;
 let joyStart = { x: 0, y: 0 };
-// --- SAFE INITIALIZATION WRAPPER ---
 window.onload = function() {
-// Bind references safely after Document Object Model finishes mapping paths
 menuOverlay = document.getElementById('menu-overlay');
 startBtn = document.getElementById('start-btn');
 btnAi = document.getElementById('mode-ai');
@@ -584,7 +576,6 @@ function endGame(msg) { state.running = false; clearInterval(clockInterval); ale
 function animate() {
 if(!state.running) return;
 requestAnimationFrame(animate);
-// Movement math calculations
 let mx = 0, mz = 0;
 if(keys['w'] || keys['arrowup']) mz = -1; if(keys['s'] || keys['arrowdown']) mz = 1;
 if(keys['a'] || keys['arrowleft']) mx = -1; if(keys['d'] || keys['arrowright']) mx = 1;
@@ -597,7 +588,6 @@ playerEntity.x += mx * playerEntity.speed * 0.016; playerEntity.z += mz * player
 playerEntity.mesh.rotation.y = Math.atan2(mx, mz);
 }
 }
-// AI Routing Engine Loop
 entities.forEach(bot => {
 if(bot.isEliminated) return;
 if(state.phase === 'PREP' && bot.team === 'Seeker') return;
@@ -616,7 +606,6 @@ let dx = bot.targetX - bot.x, dz = bot.targetZ - bot.z;
 let dist = Math.sqrt(dxdx + dzdz);
 if(dist > 0.5) { bot.x += (dx/dist)bot.speed0.016; bot.z += (dz/dist)bot.speed0.016; bot.mesh.rotation.y = Math.atan2(dx,dz); }
 });
-// Boundary clamping locks
 const bound = ARENA_SIZE/2 - 1.5;
 const clamp = (ent) => { ent.x = Math.max(-bound, Math.min(bound, ent.x)); ent.z = Math.max(-bound, Math.min(bound, ent.z)); };
 clamp(playerEntity); entities.forEach(clamp);
@@ -625,7 +614,6 @@ let h = playerEntity.mesh.rotation.y;
 playerEntity.holdingObj.x = playerEntity.x + Math.sin(h)*2.2; playerEntity.holdingObj.z = playerEntity.z + Math.cos(h)*2.2;
 }
 interactables.forEach(o => { o.mesh.position.set(o.x, o.type==='cube'?1:0, o.z); });
-// Elimination Collision Check Passes
 if(state.phase === 'SEEK') {
 entities.forEach(bot => {
 if(bot.isEliminated) return;
