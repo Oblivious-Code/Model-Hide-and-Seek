@@ -242,7 +242,6 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 </head>
 <body>
-
     <div id="canvas-container"></div>
 
     <div id="ui-layer">
@@ -301,6 +300,7 @@
         const ARENA_SIZE = 50;
         const PREP_TIME = 20;
         const SEEK_TIME = 40;
+        const WALL_PADDING = 1.5;
 
         let state = { gameMode: 'AI', playerRole: 'Hider', phase: 'PREP', timeLeft: PREP_TIME, running: false };
         let scene, camera, renderer;
@@ -314,6 +314,14 @@
         let joystickInput = { x: 0, y: 0 };
         let isJoystickActive = false;
         let joyStart = { x: 0, y: 0 };
+
+        function clampToArena(x, z, radius) {
+            const max = (ARENA_SIZE / 2) - WALL_PADDING - radius;
+            return {
+                x: Math.max(-max, Math.min(max, x)),
+                z: Math.max(-max, Math.min(max, z))
+            };
+        }
 
         function initializePage() {
             menuOverlay = document.getElementById('menu-overlay');
@@ -405,6 +413,7 @@
 
         function setupThreeJS() {
             const container = document.getElementById('canvas-container');
+            if (!container) return;
             container.innerHTML = '';
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x0f172a);
@@ -437,9 +446,9 @@
             const wallMat = new THREE.MeshStandardMaterial({ color: 0x334155 });
             const thickness = 2, height = 4;
             const wallsData = [
-                { w: ARENA_SIZE, h: height, d: thickness, x: 0, z: -ARENA_SIZE / 2 },
+                { w: ARENA_SIZE, h: height, d: thickness, x: 0, z: -(ARENA_SIZE / 2) },
                 { w: ARENA_SIZE, h: height, d: thickness, x: 0, z: ARENA_SIZE / 2 },
-                { w: thickness, h: height, d: ARENA_SIZE, x: -ARENA_SIZE / 2, z: 0 },
+                { w: thickness, h: height, d: ARENA_SIZE, x: -(ARENA_SIZE / 2), z: 0 },
                 { w: thickness, h: height, d: ARENA_SIZE, x: ARENA_SIZE / 2, z: 0 }
             ];
 
@@ -481,14 +490,15 @@
             }
 
             const mesh = new THREE.Mesh(geo, mat);
-            mesh.position.set(x, type === 'cube' ? 1 : 0, z);
+            const clamped = clampToArena(x, z, type === 'cube' ? 1.5 : 1.2);
+            mesh.position.set(clamped.x, type === 'cube' ? 1 : 0, clamped.z);
             scene.add(mesh);
             interactables.push({
                 mesh: mesh,
                 type: type,
-                x: x,
-                z: z,
-                radius: 1.5,
+                x: clamped.x,
+                z: clamped.z,
+                radius: type === 'cube' ? 1.7 : 1.2,
                 isLocked: false,
                 lockedColor: 0xef4444,
                 baseColor: type === 'cube' ? 0x64748b : 0xf59e0b
@@ -499,8 +509,9 @@
             entities = [];
             const playerColor = playerEntity.team === 'Hider' ? 0x0ea5e9 : 0xef4444;
             playerEntity.mesh = createAgentVisual(playerColor, playerEntity.team === 'Seeker');
-            playerEntity.x = playerEntity.team === 'Seeker' ? 18 : -16;
-            playerEntity.z = playerEntity.team === 'Seeker' ? 18 : -12;
+            const playerSpawn = clampToArena(playerEntity.team === 'Seeker' ? 18 : -16, playerEntity.team === 'Seeker' ? 18 : -12, playerEntity.radius);
+            playerEntity.x = playerSpawn.x;
+            playerEntity.z = playerSpawn.z;
             scene.add(playerEntity.mesh);
 
             const botConfigs = [
@@ -513,17 +524,18 @@
                 if (cfg.team === playerEntity.team && index === 0) return;
                 const botMesh = createAgentVisual(cfg.color, cfg.team === 'Seeker');
                 scene.add(botMesh);
+                const spawn = clampToArena(cfg.x, cfg.z, 0.9);
                 entities.push({
                     mesh: botMesh,
-                    x: cfg.x,
-                    z: cfg.z,
+                    x: spawn.x,
+                    z: spawn.z,
                     radius: 0.9,
                     vx: 0,
                     vz: 0,
                     speed: cfg.team === 'Seeker' ? 11.5 : 10.5,
                     team: cfg.team,
-                    targetX: cfg.x,
-                    targetZ: cfg.z,
+                    targetX: spawn.x,
+                    targetZ: spawn.z,
                     decisionTimer: 0,
                     isEliminated: false
                 });
@@ -534,55 +546,48 @@
         function createAgentVisual(colorHex, isSeeker) {
             const group = new THREE.Group();
             const baseColor = new THREE.Color(colorHex);
-            const bodyColor = baseColor.clone().offsetHSL(0, 0.12, -0.05);
-            const headColor = baseColor.clone().offsetHSL(0, 0.18, 0.12);
+            const darkerTone = baseColor.clone().offsetHSL(0, 0.12, -0.08);
+            const lighterTone = baseColor.clone().offsetHSL(0, 0.22, 0.18);
 
             const torso = new THREE.Mesh(
-                new THREE.CapsuleGeometry(0.55, 1.0, 6, 10),
-                new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.8, metalness: 0.15 })
+                new THREE.BoxGeometry(0.92, 1.05, 0.52),
+                new THREE.MeshStandardMaterial({ color: darkerTone, roughness: 0.8, metalness: 0.15 })
             );
-            torso.position.y = 1.1;
+            torso.position.y = 1.0;
             group.add(torso);
 
             const head = new THREE.Mesh(
                 new THREE.SphereGeometry(0.42, 18, 18),
-                new THREE.MeshStandardMaterial({ color: headColor, roughness: 0.7, metalness: 0.1 })
+                new THREE.MeshStandardMaterial({ color: lighterTone, roughness: 0.75, metalness: 0.08 })
             );
-            head.position.y = 2.25;
+            head.position.y = 2.16;
             group.add(head);
 
-            const chest = new THREE.Mesh(
-                new THREE.BoxGeometry(0.72, 0.46, 0.28),
-                new THREE.MeshStandardMaterial({ color: isSeeker ? 0xf8fafc : 0x0f172a, roughness: 0.65, metalness: 0.15 })
-            );
-            chest.position.set(0, 1.35, 0.4);
-            group.add(chest);
-
             const visor = new THREE.Mesh(
-                new THREE.BoxGeometry(0.72, 0.18, 0.28),
-                new THREE.MeshStandardMaterial({ color: isSeeker ? 0xe2e8f0 : 0x0f172a, roughness: 0.55, metalness: 0.2 })
+                new THREE.BoxGeometry(0.64, 0.18, 0.14),
+                new THREE.MeshStandardMaterial({ color: isSeeker ? 0xf8fafc : 0x0f172a, roughness: 0.6, metalness: 0.16 })
             );
-            visor.position.set(0, 2.28, 0.32);
+            visor.position.set(0, 2.16, 0.32);
             group.add(visor);
 
             const leftArm = new THREE.Mesh(
-                new THREE.CapsuleGeometry(0.12, 0.7, 4, 8),
-                new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.8, metalness: 0.1 })
+                new THREE.CapsuleGeometry(0.11, 0.62, 4, 8),
+                new THREE.MeshStandardMaterial({ color: darkerTone, roughness: 0.82 })
             );
-            leftArm.position.set(-0.52, 1.1, 0);
+            leftArm.position.set(-0.6, 1.0, 0);
             leftArm.rotation.z = 0.5;
             group.add(leftArm);
 
             const rightArm = leftArm.clone();
-            rightArm.position.x = 0.52;
+            rightArm.position.x = 0.6;
             rightArm.rotation.z = -0.5;
             group.add(rightArm);
 
             const leftLeg = new THREE.Mesh(
-                new THREE.CapsuleGeometry(0.15, 0.72, 4, 8),
-                new THREE.MeshStandardMaterial({ color: bodyColor.clone().offsetHSL(0, 0.1, -0.1), roughness: 0.85 })
+                new THREE.CapsuleGeometry(0.13, 0.7, 4, 8),
+                new THREE.MeshStandardMaterial({ color: darkerTone.clone().offsetHSL(0, 0.08, -0.08), roughness: 0.85 })
             );
-            leftLeg.position.set(-0.2, 0.38, 0);
+            leftLeg.position.set(-0.2, 0.3, 0);
             group.add(leftLeg);
 
             const rightLeg = leftLeg.clone();
@@ -590,7 +595,7 @@
             group.add(rightLeg);
 
             const shadow = new THREE.Mesh(
-                new THREE.CircleGeometry(0.8, 16),
+                new THREE.CircleGeometry(0.8, 18),
                 new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.18 })
             );
             shadow.rotation.x = -Math.PI / 2;
@@ -632,6 +637,7 @@
         function setupJoystick() {
             const zone = document.getElementById('joystick-zone');
             const nub = document.getElementById('joystick-nub');
+            if (!zone || !nub) return;
 
             zone.addEventListener('touchstart', (e) => {
                 isJoystickActive = true;
@@ -775,8 +781,9 @@
                 mx /= len;
                 mz /= len;
                 if (!(state.phase === 'PREP' && playerEntity.team === 'Seeker')) {
-                    playerEntity.x += mx * playerEntity.speed * 0.016;
-                    playerEntity.z += mz * playerEntity.speed * 0.016;
+                    const nextPos = clampToArena(playerEntity.x + mx * playerEntity.speed * 0.016, playerEntity.z + mz * playerEntity.speed * 0.016, playerEntity.radius);
+                    playerEntity.x = nextPos.x;
+                    playerEntity.z = nextPos.z;
                     playerEntity.mesh.rotation.y = Math.atan2(mx, mz);
                 }
             }
@@ -807,27 +814,35 @@
                 let dz = bot.targetZ - bot.z;
                 let dist = Math.sqrt(dx * dx + dz * dz);
                 if (dist > 0.5) {
-                    bot.x += (dx / dist) * bot.speed * 0.016;
-                    bot.z += (dz / dist) * bot.speed * 0.016;
+                    const nextBot = clampToArena(bot.x + (dx / dist) * bot.speed * 0.016, bot.z + (dz / dist) * bot.speed * 0.016, bot.radius);
+                    bot.x = nextBot.x;
+                    bot.z = nextBot.z;
                     bot.mesh.rotation.y = Math.atan2(dx, dz);
                 }
             });
 
-            const bound = ARENA_SIZE / 2 - 1.5;
-            const clamp = (ent) => {
-                ent.x = Math.max(-bound, Math.min(bound, ent.x));
-                ent.z = Math.max(-bound, Math.min(bound, ent.z));
-            };
-            clamp(playerEntity);
-            entities.forEach(clamp);
+            const radius = playerEntity.radius;
+            const playerClamp = clampToArena(playerEntity.x, playerEntity.z, radius);
+            playerEntity.x = playerClamp.x;
+            playerEntity.z = playerClamp.z;
+
+            entities.forEach(bot => {
+                const botClamp = clampToArena(bot.x, bot.z, bot.radius);
+                bot.x = botClamp.x;
+                bot.z = botClamp.z;
+            });
 
             if (playerEntity.holdingObj) {
                 let h = playerEntity.mesh.rotation.y;
-                playerEntity.holdingObj.x = playerEntity.x + Math.sin(h) * 2.2;
-                playerEntity.holdingObj.z = playerEntity.z + Math.cos(h) * 2.2;
+                const heldPos = clampToArena(playerEntity.x + Math.sin(h) * 2.2, playerEntity.z + Math.cos(h) * 2.2, playerEntity.holdingObj.radius);
+                playerEntity.holdingObj.x = heldPos.x;
+                playerEntity.holdingObj.z = heldPos.z;
             }
 
             interactables.forEach(o => {
+                const pushed = clampToArena(o.x, o.z, o.radius);
+                o.x = pushed.x;
+                o.z = pushed.z;
                 o.mesh.position.set(o.x, o.type === 'cube' ? 1 : 0, o.z);
             });
 
